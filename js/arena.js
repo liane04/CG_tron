@@ -6,7 +6,10 @@ var _desertoState = null;
 // Estado interno das folhas/poeira da jungle (atualizado no loop).
 var _jungleState = null;
 
-// Chamado todos os frames pelo main.js. Quando o mapa não é deserto, _desertoState é null e a função sai cedo.
+// Estado interno das partículas de neve (atualizado no loop).
+var _neveState = null;
+
+// Chamado todos os frames pelo main.js.
 export function atualizarDeserto(delta) {
     if (!_desertoState) return;
     var pos  = _desertoState.positions;
@@ -26,7 +29,7 @@ export function atualizarDeserto(delta) {
     _desertoState.geometry.attributes.position.needsUpdate = true;
 }
 
-// Folhas caindo em espiral lenta. Reposicionadas no topo quando tocam o chão.
+// Folhas caindo em espiral lenta.
 export function atualizarJungle(delta) {
     if (!_jungleState) return;
     _jungleState.tempo += delta;
@@ -47,18 +50,38 @@ export function atualizarJungle(delta) {
     _jungleState.geometry.attributes.position.needsUpdate = true;
 }
 
+// Neve caindo (mapa de gelo).
+export function atualizarNeve(delta) {
+    if (!_neveState) return;
+    var pos = _neveState.positions;
+    var count = _neveState.count;
+    var lim = _neveState.limite;
+    for (var i = 0; i < count; i++) {
+        var idx = i * 3;
+        pos[idx + 1] -= 2.0 * delta;
+        pos[idx]     += Math.sin(_neveState.tempo * 2 + i) * 0.5 * delta;
+        if (pos[idx + 1] < 0) {
+            pos[idx]     = (Math.random() - 0.5) * 2 * lim;
+            pos[idx + 1] = 10 + Math.random() * 5;
+            pos[idx + 2] = (Math.random() - 0.5) * 2 * lim;
+        }
+    }
+    _neveState.tempo += delta;
+    _neveState.geometry.attributes.position.needsUpdate = true;
+}
+
 export function criarArena(cena, ARENA, mapa) {
     var grupo = new THREE.Group();
     var loader = new THREE.TextureLoader();
     var ehDeserto = (mapa.id === 'deserto');
     var ehJungle  = (mapa.id === 'jungle');
+    var ehGelo    = (mapa.id === 'gelo');
 
     _desertoState = null;
     _jungleState = null;
+    _neveState = null;
 
     // --- Chão ---
-    // No jungle, subdividimos o plano para poder deformar os vértices e dar
-    // aspeto de terreno irregular. Nos outros mapas o plano é liso.
     var geoChao = ehJungle
         ? new THREE.PlaneGeometry(ARENA, ARENA, 20, 20)
         : new THREE.PlaneGeometry(ARENA, ARENA);
@@ -75,10 +98,14 @@ export function criarArena(cena, ARENA, mapa) {
         });
 
         matChao = new THREE.MeshStandardMaterial({
-            map: texDiff,
-            normalMap: texNormal,
-            roughnessMap: texRough,
-            roughness: 1.0,
+            // Chão de gelo: apenas o normal map dá relevo sutil.
+            // Sem diffuse (evita o visual cinzento/lamacento). Cor pura polida.
+            normalMap: ehGelo ? texNormal : undefined,
+            map: ehGelo ? null : texDiff,
+            roughnessMap: ehGelo ? null : texRough,
+            color: ehGelo ? 0x9bc4d8 : 0xffffff, // azul-acinzentado gelo polido
+            roughness: ehGelo ? 0.25 : 1.0,
+            metalness: ehGelo ? 0.15 : 0.0,
         });
     } else {
         matChao = new THREE.MeshStandardMaterial({
@@ -88,7 +115,7 @@ export function criarArena(cena, ARENA, mapa) {
         });
     }
 
-    // Deformação do chão no jungle: pequeno ruído vertical para simular solo irregular.
+    // Deformação do chão no jungle.
     if (ehJungle) {
         var posChao = geoChao.attributes.position;
         for (var iv = 0; iv < posChao.count; iv++) {
@@ -104,7 +131,7 @@ export function criarArena(cena, ARENA, mapa) {
     chao.receiveShadow = true;
     grupo.add(chao);
 
-    // --- Grid neon (apenas em mapas que o pedem) ---
+    // --- Grid neon ---
     if (mapa.mostrarGrid) {
         var grid = new THREE.GridHelper(ARENA, ARENA / 2, mapa.corGrid1, mapa.corGrid2);
         grid.position.y = 0.02;
@@ -116,16 +143,18 @@ export function criarArena(cena, ARENA, mapa) {
         construirFalesiaDeserto(grupo, ARENA);
     } else if (ehJungle) {
         construirParedesJungle(grupo, ARENA);
+    } else if (ehGelo) {
+        construirParedesGelo(grupo, ARENA, loader);
     } else {
         construirParedesPadrao(grupo, ARENA, mapa);
     }
 
-    // --- Estrelas (mapas espaciais) ---
+    // --- Estrelas ---
     if (mapa.mostrarStars) {
         construirEstrelas(grupo);
     }
 
-    // --- Ambiente exclusivo do deserto ---
+    // --- Ambiente deserto ---
     if (ehDeserto) {
         construirDunas(grupo, ARENA, loader, mapa);
         construirMonolitos(grupo, ARENA);
@@ -134,7 +163,7 @@ export function criarArena(cena, ARENA, mapa) {
         grupo.add(new THREE.HemisphereLight(0x87CEEB, 0x8B5E3C, 0.3));
     }
 
-    // --- Ambiente exclusivo da jungle ---
+    // --- Ambiente jungle ---
     if (ehJungle) {
         construirArvoresJungle(grupo, ARENA);
         construirRochasJungle(grupo, ARENA);
@@ -143,12 +172,30 @@ export function criarArena(cena, ARENA, mapa) {
         construirLuzesJungle(grupo);
     }
 
+    // --- Ambiente gelo — ártico noturno glacial ---
+    if (ehGelo) {
+        construirCristaisGelo(grupo, ARENA);
+        construirCeuGelo(grupo);
+        construirParticulasNeve(grupo, ARENA);
+        // Fill azul frio de baixo — simula reflexo da superfície gelada
+        var fillAzul = new THREE.PointLight(0x4499cc, 1.8, 55);
+        fillAzul.position.set(15, 2, 15);
+        grupo.add(fillAzul);
+        // Rim light ciano de trás — recorta os cristais contra o fundo escuro
+        var rimCiano = new THREE.PointLight(0x00ccff, 1.2, 45);
+        rimCiano.position.set(-10, 6, -15);
+        grupo.add(rimCiano);
+        // Luz aurora no topo — coloriza levemente a cena
+        var aurora = new THREE.HemisphereLight(0x003355, 0x002233, 0.6);
+        grupo.add(aurora);
+    }
+
     cena.add(grupo);
     return grupo;
 }
 
 // ---------------------------------------------------------------
-// Paredes padrão (mapas que não são deserto)
+// Paredes padrão
 // ---------------------------------------------------------------
 function construirParedesPadrao(grupo, ARENA, mapa) {
     var alturaParede = 2.0;
@@ -175,12 +222,10 @@ function construirParedesPadrao(grupo, ARENA, mapa) {
     for (var i = 0; i < paredes.length; i++) {
         var cfg = paredes[i];
         var geoParede = new THREE.BoxGeometry(cfg.tam[0], cfg.tam[1], cfg.tam[2]);
-
         var parede = new THREE.Mesh(geoParede, matParede);
         parede.position.set(cfg.pos[0], cfg.pos[1], cfg.pos[2]);
         parede.rotation.set(cfg.rot[0], cfg.rot[1], cfg.rot[2]);
         grupo.add(parede);
-
         var edges = new THREE.EdgesGeometry(geoParede);
         var outline = new THREE.LineSegments(edges, matOutline);
         outline.position.copy(parede.position);
@@ -202,7 +247,6 @@ function construirFalesiaDeserto(grupo, ARENA) {
     var matA = new THREE.MeshStandardMaterial({ color: 0x8B5E3C, roughness: 0.95, metalness: 0.0 });
     var matB = new THREE.MeshStandardMaterial({ color: 0xA0714A, roughness: 0.95, metalness: 0.0 });
 
-    // 4 lados: cada um sabe o seu eixo principal ('x' = paralelo a X; 'z' = paralelo a Z) e o sinal do deslocamento.
     var lados = [
         { axis: 'x', sign:  1 },
         { axis: 'x', sign: -1 },
@@ -241,7 +285,7 @@ function construirFalesiaDeserto(grupo, ARENA) {
 }
 
 // ---------------------------------------------------------------
-// Dunas de areia (dentro da arena, evitando zona central de jogo)
+// Dunas de areia
 // ---------------------------------------------------------------
 function construirDunas(grupo, ARENA, loader, mapa) {
     var metade = ARENA / 2;
@@ -269,12 +313,11 @@ function construirDunas(grupo, ARENA, loader, mapa) {
             tentativa++;
         } while (Math.sqrt(x * x + z * z) < raioSeguro && tentativa < 20);
 
-        var escalaXZ = 2.0 + Math.random() * 2.0;         // raio horizontal 2..4
-        var altura   = 0.4 + Math.random() * 0.8;         // altura 0.4..1.2
-
+        var escalaXZ = 2.0 + Math.random() * 2.0;
+        var altar   = 0.4 + Math.random() * 0.8;
         var geo  = new THREE.SphereGeometry(1, 20, 12);
         var duna = new THREE.Mesh(geo, matDuna);
-        duna.scale.set(escalaXZ, altura, escalaXZ);
+        duna.scale.set(escalaXZ, altar, escalaXZ);
         duna.position.set(x, 0, z);
         duna.rotation.y = Math.random() * Math.PI;
         duna.castShadow = true;
@@ -300,18 +343,16 @@ function construirMonolitos(grupo, ARENA) {
         var cx = Math.cos(theta) * raio;
         var cz = Math.sin(theta) * raio;
 
-        var segmentos = 2 + Math.floor(Math.random() * 2);  // 2 ou 3
+        var segmentos = 2 + Math.floor(Math.random() * 2);
         var yAtual = 0;
         var grupoMono = new THREE.Group();
-
-        var alturaAlvo = 3 + Math.random() * 4;            // 3..7 totais
+        var alturaAlvo = 3 + Math.random() * 4;
         var hSeg = alturaAlvo / segmentos;
 
         for (var s = 0; s < segmentos; s++) {
             var hEste = hSeg * (0.85 + Math.random() * 0.3);
             var wSeg  = 0.8 + Math.random() * 0.7;
             var dSeg  = 0.8 + Math.random() * 0.7;
-
             var geo;
             if (Math.random() < 0.5) {
                 geo = new THREE.BoxGeometry(wSeg, hEste, dSeg);
@@ -320,13 +361,12 @@ function construirMonolitos(grupo, ARENA) {
             }
             var seg = new THREE.Mesh(geo, matMono);
             seg.position.y = yAtual + hEste / 2;
-            seg.rotation.y = (Math.random() - 0.5) * 0.35;  // ±10°
+            seg.rotation.y = (Math.random() - 0.5) * 0.35;
             seg.rotation.x = (Math.random() - 0.5) * 0.15;
             seg.rotation.z = (Math.random() - 0.5) * 0.15;
             seg.castShadow = true;
             seg.receiveShadow = true;
             grupoMono.add(seg);
-
             yAtual += hEste * 0.9;
         }
 
@@ -336,12 +376,12 @@ function construirMonolitos(grupo, ARENA) {
 }
 
 // ---------------------------------------------------------------
-// Céu do deserto: skydome com gradiente vertex-color
+// Céu do deserto
 // ---------------------------------------------------------------
 function construirCeuDeserto(grupo) {
     var geo = new THREE.SphereGeometry(150, 32, 24);
     var corTopo = new THREE.Color(0xFF7043);
-    var corBase = new THREE.Color(0xD2956C);   // combina com o fog para horizonte coerente
+    var corBase = new THREE.Color(0xD2956C);
 
     var posAttr = geo.attributes.position;
     var cores = new Float32Array(posAttr.count * 3);
@@ -444,7 +484,6 @@ function construirParedesJungle(grupo, ARENA) {
     var materiais = [matBase, matBase, matMedio, matEscuro];
     var matNeon   = new THREE.LineBasicMaterial({ color: 0x4a8a2a });
 
-    // 4 lados: cada um sabe o seu eixo principal e o sinal do deslocamento.
     var lados = [
         { axis: 'x', sign:  1 },
         { axis: 'x', sign: -1 },
@@ -454,16 +493,15 @@ function construirParedesJungle(grupo, ARENA) {
 
     for (var L = 0; L < lados.length; L++) {
         var lado = lados[L];
-        // Percorre o lado com blocos sobrepostos (avança menos do que a largura) para não haver buracos.
         var cursor = -metade;
         var fim    =  metade;
         while (cursor < fim) {
-            var largura = 1.2 + Math.random() * 1.6;              // 1.2..2.8
+            var largura = 1.2 + Math.random() * 1.6;
             var altura  = Math.random() < 0.25
-                ? 10 + Math.random() * 4                          // bloco alto (tronco/rocha emergente)
-                : 6  + Math.random() * 4;                         // parede base
+                ? 10 + Math.random() * 4
+                : 6  + Math.random() * 4;
             var espessura = 0.9 + Math.random() * 0.8;
-            var offPerp   = (Math.random() - 0.5);                // ±0.5 em profundidade
+            var offPerp   = (Math.random() - 0.5);
 
             var geo = new THREE.BoxGeometry(
                 lado.axis === 'x' ? largura   : espessura,
@@ -484,7 +522,6 @@ function construirParedesJungle(grupo, ARENA) {
             bloco.receiveShadow = true;
             grupo.add(bloco);
 
-            // Contorno neon subtil em ~1 em cada 5 blocos.
             if (Math.random() < 0.2) {
                 var edges = new THREE.EdgesGeometry(geo);
                 var outline = new THREE.LineSegments(edges, matNeon);
@@ -493,18 +530,18 @@ function construirParedesJungle(grupo, ARENA) {
                 grupo.add(outline);
             }
 
-            cursor += largura * 0.75;   // sobreposição — garante fecho visual
+            cursor += largura * 0.75;
         }
     }
 }
 
 // ---------------------------------------------------------------
-// Árvores estilizadas (tronco + 2-3 copas esféricas)
+// Árvores estilizadas (jungle)
 // ---------------------------------------------------------------
 function construirArvoresJungle(grupo, ARENA) {
     var metade = ARENA / 2;
     var num = 12;
-    var raioSeguro = 10;       // nada dentro deste raio (zona de jogo)
+    var raioSeguro = 10;
     var zonaBorda  = metade - 1.5;
 
     var matTronco = new THREE.MeshStandardMaterial({ color: 0x3d2008, roughness: 0.9, metalness: 0.0 });
@@ -519,10 +556,9 @@ function construirArvoresJungle(grupo, ARENA) {
             tentativa++;
         } while (Math.sqrt(x * x + z * z) < raioSeguro && tentativa < 25);
 
-        var alturaTronco = 4 + Math.random() * 3;           // 4..7
+        var alturaTronco = 4 + Math.random() * 3;
         var raioTopo     = 0.3;
         var raioBase     = 0.5;
-
         var arvore = new THREE.Group();
 
         var geoT = new THREE.CylinderGeometry(raioTopo, raioBase, alturaTronco, 8);
@@ -532,9 +568,9 @@ function construirArvoresJungle(grupo, ARENA) {
         tronco.receiveShadow = true;
         arvore.add(tronco);
 
-        var numCopas = 2 + Math.floor(Math.random() * 2);   // 2 ou 3
+        var numCopas = 2 + Math.floor(Math.random() * 2);
         for (var c = 0; c < numCopas; c++) {
-            var raioCopa = 1.5 + Math.random();             // 1.5..2.5
+            var raioCopa = 1.5 + Math.random();
             var geoC = new THREE.SphereGeometry(raioCopa, 8, 6);
             var copa = new THREE.Mesh(geoC, matCopa);
             copa.position.set(
@@ -554,7 +590,7 @@ function construirArvoresJungle(grupo, ARENA) {
 }
 
 // ---------------------------------------------------------------
-// Rochas musgosas (esferas poligonais escaladas)
+// Rochas musgosas (jungle)
 // ---------------------------------------------------------------
 function construirRochasJungle(grupo, ARENA) {
     var metade = ARENA / 2;
@@ -573,11 +609,10 @@ function construirRochasJungle(grupo, ARENA) {
             tentativa++;
         } while (Math.sqrt(x * x + z * z) < raioSeguro && tentativa < 25);
 
-        // Cluster de 1 a 3 rochas juntas
         var quantas = 1 + Math.floor(Math.random() * 3);
         for (var r = 0; r < quantas; r++) {
-            var raio = 0.4 + Math.random() * 0.8;           // 0.4..1.2
-            var geo = new THREE.SphereGeometry(raio, 6, 5); // poligonal, não suave
+            var raio = 0.4 + Math.random() * 0.8;
+            var geo = new THREE.SphereGeometry(raio, 6, 5);
             var rocha = new THREE.Mesh(geo, matRocha);
             rocha.scale.set(
                 0.8 + Math.random() * 0.6,
@@ -602,7 +637,7 @@ function construirRochasJungle(grupo, ARENA) {
 }
 
 // ---------------------------------------------------------------
-// Lianas / raízes suspensas penduradas das paredes
+// Lianas / raízes suspensas (jungle)
 // ---------------------------------------------------------------
 function construirLianasJungle(grupo, ARENA) {
     var metade = ARENA / 2;
@@ -611,9 +646,9 @@ function construirLianasJungle(grupo, ARENA) {
     var matCastanho = new THREE.MeshStandardMaterial({ color: 0x2d1505, roughness: 0.9, metalness: 0.0 });
 
     for (var i = 0; i < num; i++) {
-        var lado = Math.floor(Math.random() * 4);           // 0..3 — parede +Z/-Z/+X/-X
-        var paral = (Math.random() - 0.5) * (ARENA - 3);    // posição ao longo do lado
-        var altura = 2 + Math.random() * 4;                 // 2..6
+        var lado = Math.floor(Math.random() * 4);
+        var paral = (Math.random() - 0.5) * (ARENA - 3);
+        var altura = 2 + Math.random() * 4;
         var raioTopo = 0.05 + Math.random() * 0.03;
         var raioBase = 0.08 + Math.random() * 0.04;
 
@@ -621,7 +656,6 @@ function construirLianasJungle(grupo, ARENA) {
         var mat = Math.random() < 0.7 ? matVerde : matCastanho;
         var liana = new THREE.Mesh(geo, mat);
 
-        // Pendurada a partir do topo da parede (~altura 8 no jungle); ponto médio fica em topo - altura/2.
         var topoParede = 8;
         var y = topoParede - altura / 2;
 
@@ -630,14 +664,14 @@ function construirLianasJungle(grupo, ARENA) {
         else if (lado === 2) liana.position.set( metade - 0.3, y, paral);
         else                 liana.position.set(-metade + 0.3, y, paral);
 
-        liana.rotation.z = (Math.random() - 0.5) * 0.4;     // ±0.2 rad
+        liana.rotation.z = (Math.random() - 0.5) * 0.4;
         liana.rotation.x = (Math.random() - 0.5) * 0.2;
         grupo.add(liana);
     }
 }
 
 // ---------------------------------------------------------------
-// Partículas — folhas / poeira da floresta
+// Partículas — folhas / poeira da floresta (jungle)
 // ---------------------------------------------------------------
 function construirParticulasJungle(grupo, ARENA) {
     var num = 250;
@@ -673,8 +707,7 @@ function construirParticulasJungle(grupo, ARENA) {
 }
 
 // ---------------------------------------------------------------
-// Luzes extras da jungle (o main.js já trata Ambient e Directional).
-// Aqui adicionamos o ponto neon central e o raio de sol filtrado.
+// Luzes extras da jungle
 // ---------------------------------------------------------------
 function construirLuzesJungle(grupo) {
     var pontoCentro = new THREE.PointLight(0x33ff66, 0.4, 25, 2);
@@ -686,4 +719,200 @@ function construirLuzesJungle(grupo) {
     raio.target.position.set(0, 0, 0);
     grupo.add(raio);
     grupo.add(raio.target);
+}
+
+// ---------------------------------------------------------------
+// Paredes de gelo — blocos limpos sem textura, estilo ice wall
+// ---------------------------------------------------------------
+function construirParedesGelo(grupo, ARENA, loader) {
+    var altura = 6;
+    var esp = 0.7;
+    var met = ARENA / 2;
+
+    // Material: gelo prensado limpo — sem textura difusa
+    var mat = new THREE.MeshStandardMaterial({
+        color: 0xd0eaf8,       // azul gelo muito pálido
+        emissive: 0x0a2a44,    // emissive azul noite subtil
+        emissiveIntensity: 0.18,
+        roughness: 0.35,
+        metalness: 0.08
+    });
+
+    var paredes = [
+        { pos: [0, altura/2,  met],  rot: [0, 0, 0],         tam: [ARENA + esp*2, altura, esp] },
+        { pos: [0, altura/2, -met],  rot: [0, 0, 0],         tam: [ARENA + esp*2, altura, esp] },
+        { pos: [ met, altura/2, 0],  rot: [0, Math.PI/2, 0], tam: [ARENA + esp*2, altura, esp] },
+        { pos: [-met, altura/2, 0],  rot: [0, Math.PI/2, 0], tam: [ARENA + esp*2, altura, esp] }
+    ];
+
+    for (var i = 0; i < paredes.length; i++) {
+        var s = paredes[i];
+        var geo = new THREE.BoxGeometry(s.tam[0], s.tam[1], s.tam[2]);
+        var parede = new THREE.Mesh(geo, mat);
+        parede.position.set(s.pos[0], s.pos[1], s.pos[2]);
+        parede.rotation.set(s.rot[0], s.rot[1], s.rot[2]);
+        parede.receiveShadow = true;
+        parede.castShadow = true;
+        grupo.add(parede);
+
+        // Linha de contorno ciano brilhante no topo da parede
+        var tamTopo = [s.tam[0], 0.06, s.tam[2]];
+        var geoTopo = new THREE.BoxGeometry(tamTopo[0], tamTopo[1], tamTopo[2]);
+        var matTopo = new THREE.MeshStandardMaterial({
+            color: 0x66ddff,
+            emissive: 0x00aaff,
+            emissiveIntensity: 1.2,
+            roughness: 0.1
+        });
+        var topo = new THREE.Mesh(geoTopo, matTopo);
+        topo.position.set(s.pos[0], altura + 0.03, s.pos[2]);
+        topo.rotation.set(s.rot[0], s.rot[1], s.rot[2]);
+        grupo.add(topo);
+    }
+}
+
+// ---------------------------------------------------------------
+// Cristais de gelo — facetados metálicos sem textura, captam luz
+// ---------------------------------------------------------------
+function construirCristaisGelo(grupo, ARENA) {
+    var metade = ARENA / 2;
+    var numClusters = 20;
+    var raioSeguro = 11;
+    var zonaBorda = metade - 1.5;
+
+    // Material espelho de gelo — alta metalness, baixa roughness = reflexões nítidas
+    var matCristal = new THREE.MeshStandardMaterial({
+        color: 0xbbddff,
+        emissive: 0x003366,
+        emissiveIntensity: 0.5,
+        roughness: 0.05,
+        metalness: 0.85
+    });
+    // Cristais médios — ligeiramente mate para variedade
+    var matCristalMedio = new THREE.MeshStandardMaterial({
+        color: 0x88ccee,
+        emissive: 0x002255,
+        emissiveIntensity: 0.35,
+        roughness: 0.2,
+        metalness: 0.6
+    });
+
+    for (var i = 0; i < numClusters; i++) {
+        var tentativa = 0;
+        var x, z;
+        do {
+            x = (Math.random() - 0.5) * 2 * zonaBorda;
+            z = (Math.random() - 0.5) * 2 * zonaBorda;
+            tentativa++;
+        } while (Math.sqrt(x * x + z * z) < raioSeguro && tentativa < 20);
+
+        var cluster = new THREE.Group();
+        var numPontas = 2 + Math.floor(Math.random() * 4); // 2 a 5 por cluster
+
+        for (var p = 0; p < numPontas; p++) {
+            var raio = 0.15 + Math.random() * 0.35;
+            var alturaC = 0.8 + Math.random() * 3.5;
+            var lados = 4 + Math.floor(Math.random() * 3); // 4, 5 ou 6 lados
+            var geo = new THREE.ConeGeometry(raio, alturaC, lados);
+            var mat = (Math.random() < 0.6) ? matCristal : matCristalMedio;
+            var espinho = new THREE.Mesh(geo, mat);
+
+            // Inclinação leve — cristais não são todos verticais
+            espinho.position.set(
+                (Math.random() - 0.5) * 1.5,
+                alturaC / 2,
+                (Math.random() - 0.5) * 1.5
+            );
+            espinho.rotation.x = (Math.random() - 0.5) * 0.5;
+            espinho.rotation.z = (Math.random() - 0.5) * 0.5;
+            espinho.rotation.y = Math.random() * Math.PI * 2;
+            espinho.castShadow = true;
+            espinho.receiveShadow = true;
+            cluster.add(espinho);
+        }
+
+        cluster.position.set(x, 0, z);
+        grupo.add(cluster);
+    }
+}
+
+// ---------------------------------------------------------------
+// Céu glacial noturno com aurora borealis subtil
+// ---------------------------------------------------------------
+function construirCeuGelo(grupo) {
+    var geo = new THREE.SphereGeometry(150, 32, 24);
+
+    // Gradiente: azul marinho profundo no topo → teal escuro no horizonte
+    var corTopo = new THREE.Color(0x020610); // quase preto com hint de azul
+    var corMeio = new THREE.Color(0x041628);
+    var corBase = new THREE.Color(0x041628); // coincide com o fog
+
+    var posAttr = geo.attributes.position;
+    var cores = new Float32Array(posAttr.count * 3);
+    var minY = Infinity, maxY = -Infinity;
+    for (var i = 0; i < posAttr.count; i++) {
+        var y = posAttr.getY(i);
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+    }
+    for (var j = 0; j < posAttr.count; j++) {
+        var yv = posAttr.getY(j);
+        var t = Math.max(0, (yv - minY) / (maxY - minY));
+        var cor = new THREE.Color().lerpColors(corBase, corTopo, t);
+        // Aurora: faixa teal no meio do céu
+        var auroraMask = Math.exp(-Math.pow((t - 0.4) / 0.18, 2));
+        cor.r += 0.0  * auroraMask;
+        cor.g += 0.04 * auroraMask;
+        cor.b += 0.06 * auroraMask;
+        cores[j * 3]     = cor.r;
+        cores[j * 3 + 1] = cor.g;
+        cores[j * 3 + 2] = cor.b;
+    }
+    geo.setAttribute('color', new THREE.BufferAttribute(cores, 3));
+
+    var mat = new THREE.MeshBasicMaterial({
+        vertexColors: true,
+        side: THREE.BackSide,
+        fog: false,
+        depthWrite: false
+    });
+    grupo.add(new THREE.Mesh(geo, mat));
+}
+
+// ---------------------------------------------------------------
+// Neve — 900 pontos minúsculos brancos a cair suavemente
+// ---------------------------------------------------------------
+function construirParticulasNeve(grupo, ARENA) {
+    var num = 1200;
+    var lim = ARENA / 2;
+
+    var positions = new Float32Array(num * 3);
+    for (var i = 0; i < num; i++) {
+        positions[i * 3]     = (Math.random() - 0.5) * 2 * lim;
+        positions[i * 3 + 1] = Math.random() * 14;
+        positions[i * 3 + 2] = (Math.random() - 0.5) * 2 * lim;
+    }
+
+    var geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+    var mat = new THREE.PointsMaterial({
+        color: 0xddeeff,
+        size: 0.04,           // pequenos pontos — flocos delicados
+        transparent: true,
+        opacity: 0.75,
+        depthWrite: false,
+        sizeAttenuation: true
+    });
+
+    var pontos = new THREE.Points(geo, mat);
+    grupo.add(pontos);
+
+    _neveState = {
+        positions: positions,
+        count: num,
+        geometry: geo,
+        limite: lim,
+        tempo: 0
+    };
 }

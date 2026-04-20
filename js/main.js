@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { aoIniciarJogo, mostrarMenu } from './menu.js';
-import { criarArena, atualizarDeserto, atualizarJungle } from './arena.js';
+import { criarArena, atualizarDeserto, atualizarJungle, atualizarNeve } from './arena.js';
 
 document.addEventListener('DOMContentLoaded', Start);
 
@@ -105,6 +105,21 @@ aoIniciarJogo(function (mapa) {
         luzDirecional.shadow.camera.near   = 1;
         luzDirecional.shadow.camera.far    = 120;
         luzDirecional.shadow.camera.updateProjectionMatrix();
+    } else if (mapa.id === 'gelo') {
+        // Luz principal branca intensa de ângulo baixo — rasante cria sombras longas
+        luzAmbiente.intensity = 0.3;
+        luzDirecional.color.set(0xffffff);
+        luzDirecional.intensity = 3.0;
+        luzDirecional.position.set(-40, 20, 10);
+        luzDirecional.castShadow = true;
+        luzDirecional.shadow.mapSize.set(2048, 2048);
+        luzDirecional.shadow.camera.left   = -45;
+        luzDirecional.shadow.camera.right  =  45;
+        luzDirecional.shadow.camera.top    =  45;
+        luzDirecional.shadow.camera.bottom = -45;
+        luzDirecional.shadow.camera.near   = 1;
+        luzDirecional.shadow.camera.far    = 150;
+        luzDirecional.shadow.camera.updateProjectionMatrix();
     } else {
         luzDirecional.color.set(0xffffff);
         luzDirecional.intensity = 0.4;
@@ -150,6 +165,7 @@ function loop() {
     var delta = reloginho.getDelta();
     atualizarDeserto(delta);
     atualizarJungle(delta);
+    atualizarNeve(delta);
     controlos.update();
     renderer.render(cena, camaraAtiva);
     requestAnimationFrame(loop);

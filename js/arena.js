@@ -94,7 +94,7 @@ export function criarArena(cena, ARENA, mapa) {
 
         [texDiff, texNormal, texRough].forEach(function (t) {
             t.wrapS = t.wrapT = THREE.RepeatWrapping;
-            t.repeat.set(8, 8);
+            t.repeat.set(4, 4); // tiling mais pequeno — textura menos repetitiva
         });
 
         matChao = new THREE.MeshStandardMaterial({
@@ -144,7 +144,7 @@ export function criarArena(cena, ARENA, mapa) {
     } else if (ehJungle) {
         construirParedesJungle(grupo, ARENA);
     } else if (ehGelo) {
-        construirParedesGelo(grupo, ARENA, loader);
+        construirPilaresGelo(grupo, ARENA);
     } else {
         construirParedesPadrao(grupo, ARENA, mapa);
     }
@@ -722,52 +722,99 @@ function construirLuzesJungle(grupo) {
 }
 
 // ---------------------------------------------------------------
-// Paredes de gelo — blocos limpos sem textura, estilo ice wall
+// Pilares de gelo irregulares (estilo parede jungle mas em gelo)
 // ---------------------------------------------------------------
-function construirParedesGelo(grupo, ARENA, loader) {
-    var altura = 6;
-    var esp = 0.7;
-    var met = ARENA / 2;
+function construirPilaresGelo(grupo, ARENA) {
+    var metade = ARENA / 2;
 
-    // Material: gelo prensado limpo — sem textura difusa
-    var mat = new THREE.MeshStandardMaterial({
-        color: 0xd0eaf8,       // azul gelo muito pálido
-        emissive: 0x0a2a44,    // emissive azul noite subtil
-        emissiveIntensity: 0.18,
-        roughness: 0.35,
-        metalness: 0.08
+    // Dois materiais de gelo com ligeira variação para dar vida
+    var matClaro = new THREE.MeshStandardMaterial({
+        color: 0xd8eeff,
+        emissive: 0x0a2233,
+        emissiveIntensity: 0.2,
+        roughness: 0.25,
+        metalness: 0.1
+    });
+    var matMedio = new THREE.MeshStandardMaterial({
+        color: 0xaaccee,
+        emissive: 0x051525,
+        emissiveIntensity: 0.15,
+        roughness: 0.4,
+        metalness: 0.05
+    });
+    var matEscuro = new THREE.MeshStandardMaterial({
+        color: 0x7aaabb,
+        emissive: 0x020d18,
+        emissiveIntensity: 0.1,
+        roughness: 0.55,
+        metalness: 0.05
+    });
+    var materiais = [matClaro, matClaro, matMedio, matEscuro];
+
+    // Material do contorno ciano que brilha no topo de alguns pilares
+    var matTopo = new THREE.MeshStandardMaterial({
+        color: 0x66ddff,
+        emissive: 0x00aaff,
+        emissiveIntensity: 1.5,
+        roughness: 0.05
     });
 
-    var paredes = [
-        { pos: [0, altura/2,  met],  rot: [0, 0, 0],         tam: [ARENA + esp*2, altura, esp] },
-        { pos: [0, altura/2, -met],  rot: [0, 0, 0],         tam: [ARENA + esp*2, altura, esp] },
-        { pos: [ met, altura/2, 0],  rot: [0, Math.PI/2, 0], tam: [ARENA + esp*2, altura, esp] },
-        { pos: [-met, altura/2, 0],  rot: [0, Math.PI/2, 0], tam: [ARENA + esp*2, altura, esp] }
+    var lados = [
+        { axis: 'x', sign:  1 },
+        { axis: 'x', sign: -1 },
+        { axis: 'z', sign:  1 },
+        { axis: 'z', sign: -1 }
     ];
 
-    for (var i = 0; i < paredes.length; i++) {
-        var s = paredes[i];
-        var geo = new THREE.BoxGeometry(s.tam[0], s.tam[1], s.tam[2]);
-        var parede = new THREE.Mesh(geo, mat);
-        parede.position.set(s.pos[0], s.pos[1], s.pos[2]);
-        parede.rotation.set(s.rot[0], s.rot[1], s.rot[2]);
-        parede.receiveShadow = true;
-        parede.castShadow = true;
-        grupo.add(parede);
+    for (var L = 0; L < lados.length; L++) {
+        var lado = lados[L];
+        var cursor = -metade;
+        var fim    =  metade;
+        while (cursor < fim) {
+            // Pilares em gelo são mais estreitos e mais altos do que a jungle
+            var largura   = 0.8 + Math.random() * 1.4;          // 0.8 .. 2.2
+            var altura    = Math.random() < 0.3
+                ? 7 + Math.random() * 5                          // pilar alto ocasional
+                : 4 + Math.random() * 3;                         // pilar normal
+            var espessura = 0.7 + Math.random() * 0.6;
+            var offPerp   = (Math.random() - 0.5) * 0.4;
 
-        // Linha de contorno ciano brilhante no topo da parede
-        var tamTopo = [s.tam[0], 0.06, s.tam[2]];
-        var geoTopo = new THREE.BoxGeometry(tamTopo[0], tamTopo[1], tamTopo[2]);
-        var matTopo = new THREE.MeshStandardMaterial({
-            color: 0x66ddff,
-            emissive: 0x00aaff,
-            emissiveIntensity: 1.2,
-            roughness: 0.1
-        });
-        var topo = new THREE.Mesh(geoTopo, matTopo);
-        topo.position.set(s.pos[0], altura + 0.03, s.pos[2]);
-        topo.rotation.set(s.rot[0], s.rot[1], s.rot[2]);
-        grupo.add(topo);
+            var mat = materiais[Math.floor(Math.random() * materiais.length)];
+
+            var geo = new THREE.BoxGeometry(
+                lado.axis === 'x' ? largura   : espessura,
+                altura,
+                lado.axis === 'x' ? espessura : largura
+            );
+            var pilar = new THREE.Mesh(geo, mat);
+
+            var centro = cursor + largura / 2;
+            if (lado.axis === 'x') {
+                pilar.position.set(centro, altura / 2, lado.sign * metade + offPerp);
+            } else {
+                pilar.position.set(lado.sign * metade + offPerp, altura / 2, centro);
+            }
+            pilar.rotation.y = (Math.random() - 0.5) * 0.1;
+            pilar.castShadow = true;
+            pilar.receiveShadow = true;
+            grupo.add(pilar);
+
+            // ~25% dos pilares têm um cap ciano brilhante no topo
+            if (Math.random() < 0.25) {
+                var geoCap = new THREE.BoxGeometry(
+                    lado.axis === 'x' ? largura + 0.1   : espessura + 0.1,
+                    0.12,
+                    lado.axis === 'x' ? espessura + 0.1 : largura + 0.1
+                );
+                var cap = new THREE.Mesh(geoCap, matTopo);
+                cap.position.copy(pilar.position);
+                cap.position.y = altura + 0.06;
+                grupo.add(cap);
+            }
+
+            // Avança mais do que a largura para deixar lacunas entre os pilares
+            cursor += largura + 0.2 + Math.random() * 0.8;
+        }
     }
 }
 

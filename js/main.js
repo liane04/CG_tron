@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { aoIniciarJogo, mostrarMenu } from './menu.js';
-import { criarArena } from './arena.js';
+import { criarArena, atualizarDeserto } from './arena.js';
 
 document.addEventListener('DOMContentLoaded', Start);
 
@@ -10,7 +10,11 @@ var cena = new THREE.Scene();
 
 var renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 document.body.appendChild(renderer.domElement);
+
+var reloginho = new THREE.Clock();
 
 // --- Tamanho da arena ---
 var ARENA = 40;
@@ -66,21 +70,35 @@ aoIniciarJogo(function (mapa) {
     }
 
     cena.background = new THREE.Color(mapa.corFundo);
-    cena.fog = mapa.temFog === false ? null : new THREE.Fog(mapa.corFundo, 40, 120);
+    var corFog  = mapa.corFog  !== undefined ? mapa.corFog  : mapa.corFundo;
+    var fogNear = mapa.fogNear !== undefined ? mapa.fogNear : 40;
+    var fogFar  = mapa.fogFar  !== undefined ? mapa.fogFar  : 120;
+    cena.fog = mapa.temFog === false ? null : new THREE.Fog(corFog, fogNear, fogFar);
     luzAmbiente.color.set(mapa.luzAmbiente);
 
     if (mapa.id === 'deserto') {
-        luzDirecional.color.set(0xffcc66);
-        luzDirecional.intensity = 1.2;
-        luzDirecional.position.set(30, 50, 10);
+        luzDirecional.color.set(0xFFB347);
+        luzDirecional.intensity = 1.5;
+        luzDirecional.position.set(60, 20, 40);
+        luzDirecional.castShadow = true;
+        luzDirecional.shadow.mapSize.set(1024, 1024);
+        luzDirecional.shadow.camera.left   = -40;
+        luzDirecional.shadow.camera.right  =  40;
+        luzDirecional.shadow.camera.top    =  40;
+        luzDirecional.shadow.camera.bottom = -40;
+        luzDirecional.shadow.camera.near   = 1;
+        luzDirecional.shadow.camera.far    = 150;
+        luzDirecional.shadow.camera.updateProjectionMatrix();
     } else if (mapa.id === 'jungle') {
         luzDirecional.color.set(0x88ff88);
         luzDirecional.intensity = 0.6;
         luzDirecional.position.set(10, 30, 10);
+        luzDirecional.castShadow = false;
     } else {
         luzDirecional.color.set(0xffffff);
         luzDirecional.intensity = 0.4;
         luzDirecional.position.set(20, 40, 15);
+        luzDirecional.castShadow = false;
     }
 
     grupoArena = criarArena(cena, ARENA, mapa);
@@ -118,6 +136,8 @@ function Start() {
 }
 
 function loop() {
+    var delta = reloginho.getDelta();
+    atualizarDeserto(delta);
     controlos.update();
     renderer.render(cena, camaraAtiva);
     requestAnimationFrame(loop);

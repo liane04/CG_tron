@@ -66,13 +66,17 @@ aoIniciarJogo(function (mapa) {
     }
 
     cena.background = new THREE.Color(mapa.corFundo);
-    cena.fog = new THREE.Fog(mapa.corFundo, 40, 120);
+    cena.fog = mapa.temFog === false ? null : new THREE.Fog(mapa.corFundo, 40, 120);
     luzAmbiente.color.set(mapa.luzAmbiente);
 
     if (mapa.id === 'deserto') {
         luzDirecional.color.set(0xffcc66);
         luzDirecional.intensity = 1.2;
         luzDirecional.position.set(30, 50, 10);
+    } else if (mapa.id === 'jungle') {
+        luzDirecional.color.set(0x88ff88);
+        luzDirecional.intensity = 0.6;
+        luzDirecional.position.set(10, 30, 10);
     } else {
         luzDirecional.color.set(0xffffff);
         luzDirecional.intensity = 0.4;

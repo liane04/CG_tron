@@ -81,6 +81,25 @@ export function criarArena(cena, ARENA, mapa) {
         grupo.add(outline);
     }
 
+    // --- Estrelas (apenas em mapas espaciais) ---
+    if (mapa.mostrarStars) {
+        var numStars = 1500;
+        var posStars = new Float32Array(numStars * 3);
+        for (var s = 0; s < numStars; s++) {
+            var theta = Math.random() * 2 * Math.PI;
+            var phi = Math.acos(2 * Math.random() - 1);
+            var r = 80 + Math.random() * 120;
+            posStars[s * 3]     = r * Math.sin(phi) * Math.cos(theta);
+            posStars[s * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+            posStars[s * 3 + 2] = r * Math.cos(phi);
+        }
+        var geoStars = new THREE.BufferGeometry();
+        geoStars.setAttribute('position', new THREE.BufferAttribute(posStars, 3));
+        var matStars = new THREE.PointsMaterial({ color: 0xffffff, size: 0.5, sizeAttenuation: true });
+        var stars = new THREE.Points(geoStars, matStars);
+        grupo.add(stars);
+    }
+
     cena.add(grupo);
     return grupo;
 }

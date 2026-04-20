@@ -1,18 +1,20 @@
 export const mapas = [
     {
-        id: 'tron',
-        nome: 'TRON',
-        descricao: 'Arena clássica de luz',
-        corCSS: '#00ffff',
+        id: 'space',
+        nome: 'SPACE',
+        descricao: 'Arena no vazio do espaço',
+        corCSS: '#00cfff',
         corFundo: 0x000008,
-        corGrid1: 0x00ffff,
-        corGrid2: 0x004488,
+        corGrid1: 0x00cfff,
+        corGrid2: 0x003366,
         corChao: 0x000011,
-        corParede: 0x00ffff,
-        emissividadeParede: 1.2,
+        corParede: 0x00cfff,
+        emissividadeParede: 1.4,
         opacidadeParede: 0.20,
         mostrarGrid: true,
-        luzAmbiente: 0x222244,
+        mostrarStars: true,
+        temFog: false,
+        luzAmbiente: 0x111233,
     },
     {
         id: 'deserto',
@@ -29,9 +31,30 @@ export const mapas = [
         mostrarGrid: false,
         luzAmbiente: 0x4a3010,
         texturas: {
-            diffuse: './textures/textures_areia/sandy_gravel_diff_2k.jpg',
-            normal:  './textures/textures_areia/sandy_gravel_nor_gl_2k.jpg',
-            rough:   './textures/textures_areia/sandy_gravel_rough_2k.jpg',
+            diffuse: './textures/areia/sandy_gravel_diff_2k.jpg',
+            normal:  './textures/areia/sandy_gravel_nor_gl_2k.jpg',
+            rough:   './textures/areia/sandy_gravel_rough_2k.jpg',
+        }
+    },
+    {
+        id: 'jungle',
+        nome: 'JUNGLE',
+        descricao: 'Arena na floresta densa',
+        corCSS: '#22cc44',
+        corFundo: 0x010a02,
+        corGrid1: 0x22cc44,
+        corGrid2: 0x0a2a0a,
+        corChao: 0x0a1a08,
+        corParede: 0x33aa44,
+        emissividadeParede: 0.0,
+        opacidadeParede: 1.0,
+        mostrarGrid: false,
+        temFog: true,
+        luzAmbiente: 0x0a2010,
+        texturas: {
+            diffuse: './textures/jungle/rocky_terrain_02_diff_2k.jpg',
+            normal:  './textures/jungle/rocky_terrain_02_nor_gl_2k.jpg',
+            rough:   './textures/jungle/rocky_terrain_02_rough_2k.jpg',
         }
     }
 ];

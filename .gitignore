@@ -1,12 +1,23 @@
+# Claude Code
+.claude/
+
 # Dependências (se usarem npm)
 node_modules/
 
 # Ficheiros de sistema
 .DS_Store
 Thumbs.db
+desktop.ini
 
 # Editores
 .vscode/
 .idea/
 *.suo
 *.user
+
+# Ficheiros ZIP e Blend (assets originais)
+*.zip
+*.blend
+
+# Logs
+*.log

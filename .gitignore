@@ -1,0 +1,12 @@
+# Dependências (se usarem npm)
+node_modules/
+
+# Ficheiros de sistema
+.DS_Store
+Thumbs.db
+
+# Editores
+.vscode/
+.idea/
+*.suo
+*.user

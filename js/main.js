@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { aoIniciarJogo, mostrarMenu } from './menu.js';
-import { criarArena, atualizarDeserto } from './arena.js';
+import { criarArena, atualizarDeserto, atualizarJungle } from './arena.js';
 
 document.addEventListener('DOMContentLoaded', Start);
 
@@ -75,6 +75,7 @@ aoIniciarJogo(function (mapa) {
     var fogFar  = mapa.fogFar  !== undefined ? mapa.fogFar  : 120;
     cena.fog = mapa.temFog === false ? null : new THREE.Fog(corFog, fogNear, fogFar);
     luzAmbiente.color.set(mapa.luzAmbiente);
+    luzAmbiente.intensity = 1.2;   // valor por omissão; a jungle regula para baixo
 
     if (mapa.id === 'deserto') {
         luzDirecional.color.set(0xFFB347);
@@ -90,10 +91,20 @@ aoIniciarJogo(function (mapa) {
         luzDirecional.shadow.camera.far    = 150;
         luzDirecional.shadow.camera.updateProjectionMatrix();
     } else if (mapa.id === 'jungle') {
-        luzDirecional.color.set(0x88ff88);
+        // Sol filtrado pelas copas — luz fria esverdeada, vinda de um ângulo lateral.
+        luzAmbiente.intensity = 0.8;
+        luzDirecional.color.set(0xa8d870);
         luzDirecional.intensity = 0.6;
-        luzDirecional.position.set(10, 30, 10);
-        luzDirecional.castShadow = false;
+        luzDirecional.position.set(-20, 30, 15);
+        luzDirecional.castShadow = true;
+        luzDirecional.shadow.mapSize.set(1024, 1024);
+        luzDirecional.shadow.camera.left   = -25;
+        luzDirecional.shadow.camera.right  =  25;
+        luzDirecional.shadow.camera.top    =  25;
+        luzDirecional.shadow.camera.bottom = -25;
+        luzDirecional.shadow.camera.near   = 1;
+        luzDirecional.shadow.camera.far    = 120;
+        luzDirecional.shadow.camera.updateProjectionMatrix();
     } else {
         luzDirecional.color.set(0xffffff);
         luzDirecional.intensity = 0.4;
@@ -138,6 +149,7 @@ function Start() {
 function loop() {
     var delta = reloginho.getDelta();
     atualizarDeserto(delta);
+    atualizarJungle(delta);
     controlos.update();
     renderer.render(cena, camaraAtiva);
     requestAnimationFrame(loop);

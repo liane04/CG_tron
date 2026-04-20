@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { aoIniciarJogo, mostrarMenu } from './menu.js';
 import { criarArena, atualizarDeserto, atualizarJungle } from './arena.js';
+import { criarMota } from './mota.js';
 
 document.addEventListener('DOMContentLoaded', Start);
 
@@ -61,6 +62,8 @@ cena.add(luzDirecional);
 
 // --- Aplicar tema do mapa selecionado ---
 var grupoArena = null;
+var motaJogador1 = null;
+var motaJogador2 = null;
 
 aoIniciarJogo(function (mapa) {
     // Remover arena anterior se existir
@@ -113,6 +116,21 @@ aoIniciarJogo(function (mapa) {
     }
 
     grupoArena = criarArena(cena, ARENA, mapa);
+
+    // --- Motas ---
+    // Remover motas anteriores se existirem
+    if (motaJogador1) { cena.remove(motaJogador1); motaJogador1 = null; }
+    if (motaJogador2) { cena.remove(motaJogador2); motaJogador2 = null; }
+
+    motaJogador1 = criarMota(mapa.id, 0x00ffff);   // jogador 1 — ciano
+    motaJogador1.position.set(-5, 0, 0);
+    motaJogador1.rotation.y = 0;
+    cena.add(motaJogador1);
+
+    motaJogador2 = criarMota(mapa.id, 0xff0066);   // jogador 2 — rosa
+    motaJogador2.position.set(5, 0, 0);
+    motaJogador2.rotation.y = Math.PI;             // virado para o lado oposto
+    cena.add(motaJogador2);
 });
 
 // --- Redimensionamento ---

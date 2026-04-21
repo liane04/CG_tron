@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { aoIniciarJogo, mostrarMenu } from './menu.js';
 import { criarArena, atualizarDeserto, atualizarJungle, atualizarNeve } from './arena.js';
+import { criarMota } from './mota.js';
 
 document.addEventListener('DOMContentLoaded', Start);
 
@@ -17,30 +18,30 @@ document.body.appendChild(renderer.domElement);
 var reloginho = new THREE.Clock();
 
 // --- Tamanho da arena ---
-var ARENA = 40;
+var ARENA = 70;
 
 // --- Câmara em Perspetiva ---
 var camaraPerspetiva = new THREE.PerspectiveCamera(
     60,
     window.innerWidth / window.innerHeight,
     0.1,
-    500
+    800
 );
-camaraPerspetiva.position.set(0, 30, 45);
+camaraPerspetiva.position.set(0, 45, 70);
 camaraPerspetiva.lookAt(0, 0, 0);
 
 // --- Câmara Ortográfica (vista topo) ---
 var aspecto = window.innerWidth / window.innerHeight;
-var tamanhoOrto = ARENA * 0.6;
+var tamanhoOrto = ARENA * 0.62;
 var camaraOrtografica = new THREE.OrthographicCamera(
     -tamanhoOrto * aspecto,
     tamanhoOrto * aspecto,
     tamanhoOrto,
     -tamanhoOrto,
     0.1,
-    500
+    800
 );
-camaraOrtografica.position.set(0, 80, 0);
+camaraOrtografica.position.set(0, 120, 0);
 camaraOrtografica.lookAt(0, 0, 0);
 
 var camaraAtiva = camaraPerspetiva;
@@ -61,12 +62,18 @@ cena.add(luzDirecional);
 
 // --- Aplicar tema do mapa selecionado ---
 var grupoArena = null;
+var grupoMota = null;
 
 aoIniciarJogo(function (mapa) {
     // Remover arena anterior se existir
     if (grupoArena) {
         cena.remove(grupoArena);
         grupoArena = null;
+    }
+    // Remover mota anterior se existir
+    if (grupoMota) {
+        cena.remove(grupoMota);
+        grupoMota = null;
     }
 
     cena.background = new THREE.Color(mapa.corFundo);
@@ -128,6 +135,12 @@ aoIniciarJogo(function (mapa) {
     }
 
     grupoArena = criarArena(cena, ARENA, mapa);
+
+    // --- Mota de pré-visualização no centro da arena ---
+    var corNeon = mapa.corNeonMota !== undefined ? mapa.corNeonMota : 0x00ffff;
+    grupoMota = criarMota(corNeon);
+    grupoMota.position.set(0, 0, 0);
+    cena.add(grupoMota);
 });
 
 // --- Redimensionamento ---

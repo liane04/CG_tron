@@ -722,42 +722,44 @@ function construirLuzesJungle(grupo) {
 }
 
 // ---------------------------------------------------------------
-// Pilares de gelo irregulares (estilo parede jungle mas em gelo)
+// Paredes de gelo em camadas sobrepostas (estilo jungle, paleta glaciar)
 // ---------------------------------------------------------------
 function construirPilaresGelo(grupo, ARENA) {
     var metade = ARENA / 2;
 
-    // Dois materiais de gelo com ligeira variação para dar vida
-    var matClaro = new THREE.MeshStandardMaterial({
-        color: 0xd8eeff,
-        emissive: 0x0a2233,
-        emissiveIntensity: 0.2,
-        roughness: 0.25,
-        metalness: 0.1
+    // Palete de gelo: 4 materiais com variações de cor, reflexo e emissão
+    var matGeloClaro = new THREE.MeshStandardMaterial({
+        color: 0xddeeff,
+        emissive: 0x082233,
+        emissiveIntensity: 0.25,
+        roughness: 0.15,
+        metalness: 0.12
     });
-    var matMedio = new THREE.MeshStandardMaterial({
-        color: 0xaaccee,
-        emissive: 0x051525,
-        emissiveIntensity: 0.15,
-        roughness: 0.4,
-        metalness: 0.05
+    var matGeloMedio = new THREE.MeshStandardMaterial({
+        color: 0x99ccee,
+        emissive: 0x041522,
+        emissiveIntensity: 0.18,
+        roughness: 0.30,
+        metalness: 0.08
     });
-    var matEscuro = new THREE.MeshStandardMaterial({
-        color: 0x7aaabb,
+    var matGeloEscuro = new THREE.MeshStandardMaterial({
+        color: 0x5588aa,
         emissive: 0x020d18,
-        emissiveIntensity: 0.1,
-        roughness: 0.55,
+        emissiveIntensity: 0.12,
+        roughness: 0.50,
         metalness: 0.05
     });
-    var materiais = [matClaro, matClaro, matMedio, matEscuro];
-
-    // Material do contorno ciano que brilha no topo de alguns pilares
-    var matTopo = new THREE.MeshStandardMaterial({
-        color: 0x66ddff,
-        emissive: 0x00aaff,
-        emissiveIntensity: 1.5,
-        roughness: 0.05
+    var matGeloOpaco = new THREE.MeshStandardMaterial({
+        color: 0x2a4a66,
+        emissive: 0x010810,
+        emissiveIntensity: 0.08,
+        roughness: 0.75,
+        metalness: 0.02
     });
+    var materiais = [matGeloClaro, matGeloClaro, matGeloMedio, matGeloEscuro, matGeloOpaco];
+
+    // Contorno neon ciano (igual ao estilo jungle, mas cor de gelo)
+    var matNeonGelo = new THREE.LineBasicMaterial({ color: 0x44ccff });
 
     var lados = [
         { axis: 'x', sign:  1 },
@@ -770,53 +772,54 @@ function construirPilaresGelo(grupo, ARENA) {
         var lado = lados[L];
         var cursor = -metade;
         var fim    =  metade;
+
         while (cursor < fim) {
-            // Pilares em gelo são mais estreitos e mais altos do que a jungle
-            var largura   = 0.8 + Math.random() * 1.4;          // 0.8 .. 2.2
-            var altura    = Math.random() < 0.3
-                ? 7 + Math.random() * 5                          // pilar alto ocasional
-                : 4 + Math.random() * 3;                         // pilar normal
-            var espessura = 0.7 + Math.random() * 0.6;
-            var offPerp   = (Math.random() - 0.5) * 0.4;
+            // Blocos de largura variada — cobertura densa como na jungle
+            var largura   = 1.0 + Math.random() * 2.2;
+            // Alturas: maioria média, ~20% são altas (imitando cristais/seracs)
+            var altura    = Math.random() < 0.20
+                ? 12 + Math.random() * 6    // bloco alto ocasional — "serac"
+                : 5  + Math.random() * 5;   // bloco normal
+            // Espessura variada — camadas mais profundas criam sobreposição
+            var espessura = 1.0 + Math.random() * 1.8;
+            // Offset perpendicular — recuos e avanços dão profundidade à parede
+            var offPerp   = (Math.random() - 0.5) * 1.5;
 
             var mat = materiais[Math.floor(Math.random() * materiais.length)];
-
             var geo = new THREE.BoxGeometry(
                 lado.axis === 'x' ? largura   : espessura,
                 altura,
                 lado.axis === 'x' ? espessura : largura
             );
-            var pilar = new THREE.Mesh(geo, mat);
+            var bloco = new THREE.Mesh(geo, mat);
 
             var centro = cursor + largura / 2;
             if (lado.axis === 'x') {
-                pilar.position.set(centro, altura / 2, lado.sign * metade + offPerp);
+                bloco.position.set(centro, altura / 2, lado.sign * metade + offPerp);
             } else {
-                pilar.position.set(lado.sign * metade + offPerp, altura / 2, centro);
+                bloco.position.set(lado.sign * metade + offPerp, altura / 2, centro);
             }
-            pilar.rotation.y = (Math.random() - 0.5) * 0.1;
-            pilar.castShadow = true;
-            pilar.receiveShadow = true;
-            grupo.add(pilar);
+            // Rotação ligeira para quebrar a simetria — aspeto de camadas naturais
+            bloco.rotation.y = (Math.random() - 0.5) * 0.12;
+            bloco.castShadow  = true;
+            bloco.receiveShadow = true;
+            grupo.add(bloco);
 
-            // ~25% dos pilares têm um cap ciano brilhante no topo
-            if (Math.random() < 0.25) {
-                var geoCap = new THREE.BoxGeometry(
-                    lado.axis === 'x' ? largura + 0.1   : espessura + 0.1,
-                    0.12,
-                    lado.axis === 'x' ? espessura + 0.1 : largura + 0.1
-                );
-                var cap = new THREE.Mesh(geoCap, matTopo);
-                cap.position.copy(pilar.position);
-                cap.position.y = altura + 0.06;
-                grupo.add(cap);
+            // ~30% dos blocos têm contorno neon ciano visível (arestas brilhantes)
+            if (Math.random() < 0.30) {
+                var edges   = new THREE.EdgesGeometry(geo);
+                var outline = new THREE.LineSegments(edges, matNeonGelo);
+                outline.position.copy(bloco.position);
+                outline.rotation.copy(bloco.rotation);
+                grupo.add(outline);
             }
 
-            // Avança mais do que a largura para deixar lacunas entre os pilares
-            cursor += largura + 0.2 + Math.random() * 0.8;
+            // Avançar com sobreposição moderada — mais denso que pilares individuais
+            cursor += largura * 0.70;
         }
     }
 }
+
 
 // ---------------------------------------------------------------
 // Cristais de gelo — facetados metálicos sem textura, captam luz

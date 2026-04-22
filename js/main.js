@@ -3,6 +3,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { aoIniciarJogo, mostrarMenu } from './menu.js';
 import { criarArena, atualizarDeserto, atualizarJungle } from './arena.js';
 import { criarMota } from './mota.js';
+import { inicializarInput, atualizarMotas } from './input.js';
 
 document.addEventListener('DOMContentLoaded', Start);
 
@@ -45,6 +46,9 @@ camaraOrtografica.position.set(0, 80, 0);
 camaraOrtografica.lookAt(0, 0, 0);
 
 var camaraAtiva = camaraPerspetiva;
+
+// --- Modos de câmara: 'livre' | 'terceiraPessoa' | 'topo' ---
+var modoCamara = 'livre';
 
 // --- Controlos de Órbita (câmara perspetiva) ---
 var controlos = new OrbitControls(camaraPerspetiva, renderer.domElement);
@@ -131,6 +135,9 @@ aoIniciarJogo(function (mapa) {
     motaJogador2.position.set(5, 0, 0);
     motaJogador2.rotation.y = Math.PI;             // virado para o lado oposto
     cena.add(motaJogador2);
+
+    // --- Input: ligar teclado às motas recém-criadas ---
+    inicializarInput(motaJogador1, motaJogador2);
 });
 
 // --- Redimensionamento ---
@@ -149,10 +156,38 @@ window.addEventListener('resize', function () {
     renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
-// --- Input de teclado ---
+// --- Input de teclado (câmaras / menu) ---
+function aplicarModoCamara() {
+    if (modoCamara === 'livre') {
+        controlos.enabled = true;
+    } else if (modoCamara === 'terceiraPessoa') {
+        camaraAtiva = camaraPerspetiva;
+        controlos.enabled = false;
+    } else if (modoCamara === 'topo') {
+        camaraAtiva = camaraOrtografica;
+        camaraOrtografica.position.set(0, 80, 0);
+        camaraOrtografica.lookAt(0, 0, 0);
+        controlos.enabled = false;
+    }
+}
+
 window.addEventListener('keydown', function (e) {
     if (e.key === 'c' || e.key === 'C') {
-        camaraAtiva = (camaraAtiva === camaraPerspetiva) ? camaraOrtografica : camaraPerspetiva;
+        if (modoCamara !== 'livre') {
+            modoCamara = 'livre';
+            camaraAtiva = camaraPerspetiva;
+        } else {
+            camaraAtiva = (camaraAtiva === camaraPerspetiva) ? camaraOrtografica : camaraPerspetiva;
+        }
+        aplicarModoCamara();
+    }
+    if (e.key === 'v' || e.key === 'V') {
+        modoCamara = 'terceiraPessoa';
+        aplicarModoCamara();
+    }
+    if (e.key === 'b' || e.key === 'B') {
+        modoCamara = 'topo';
+        aplicarModoCamara();
     }
     if (e.key === 'Escape') {
         mostrarMenu();
@@ -164,10 +199,21 @@ function Start() {
     requestAnimationFrame(loop);
 }
 
+var offsetTerceiraPessoa = new THREE.Vector3(0, 4, -8);
+var offsetTemp = new THREE.Vector3();
+
 function loop() {
     var delta = reloginho.getDelta();
     atualizarDeserto(delta);
     atualizarJungle(delta);
+    atualizarMotas(delta);
+
+    if (modoCamara === 'terceiraPessoa' && motaJogador1) {
+        offsetTemp.copy(offsetTerceiraPessoa).applyQuaternion(motaJogador1.quaternion);
+        camaraPerspetiva.position.copy(motaJogador1.position).add(offsetTemp);
+        camaraPerspetiva.lookAt(motaJogador1.position);
+    }
+
     controlos.update();
     renderer.render(cena, camaraAtiva);
     requestAnimationFrame(loop);

@@ -14,6 +14,7 @@ var VELOCIDADE_ROTACAO = 2.5;   // rad/s — viragem fluida
 var VELOCIDADE_BASE    = 10;    // unidades/s
 var ALTURA_MAX_SALTO   = 3;
 var DURACAO_SALTO      = 0.6;   // segundos
+var LIMITE_ARENA       = 20;    // ±ARENA/2 — atualizado por inicializarInput
 
 // --- Listeners (registados uma única vez) ---
 var listenersRegistados = false;
@@ -37,9 +38,11 @@ function aoLargar(e) {
 }
 
 function criarEstado(mota) {
+    // A frente visual da mota aponta para -Z (ver mota.js, roda dianteira em ZF=-1.18),
+    // pelo que a direção de movimento usa sinal negativo para coincidir com o visual.
     return {
         velocidade: VELOCIDADE_BASE,
-        direcao: new THREE.Vector3(Math.sin(mota.rotation.y), 0, Math.cos(mota.rotation.y)),
+        direcao: new THREE.Vector3(-Math.sin(mota.rotation.y), 0, -Math.cos(mota.rotation.y)),
         saltando: false,
         tSalto: 0,
         alturaBase: mota.position.y,
@@ -48,9 +51,10 @@ function criarEstado(mota) {
     };
 }
 
-export function inicializarInput(mota1, mota2) {
+export function inicializarInput(mota1, mota2, arena) {
     motaJ1 = mota1;
     motaJ2 = mota2;
+    if (arena !== undefined) LIMITE_ARENA = arena / 2;
     estadoJ1 = criarEstado(mota1);
     estadoJ2 = criarEstado(mota2);
 
@@ -71,11 +75,16 @@ function atualizarJogador(mota, estado, teclaEsq, teclaDir, delta) {
     if (teclas[teclaEsq])  mota.rotation.y += VELOCIDADE_ROTACAO * delta;
     if (teclas[teclaDir])  mota.rotation.y -= VELOCIDADE_ROTACAO * delta;
 
-    // Atualizar vetor direção a partir da rotação corrente
-    estado.direcao.set(Math.sin(mota.rotation.y), 0, Math.cos(mota.rotation.y));
+    // Atualizar vetor direção (alinhado com a frente visual, -Z em espaço local)
+    estado.direcao.set(-Math.sin(mota.rotation.y), 0, -Math.cos(mota.rotation.y));
 
     // Movimento contínuo para a frente
     mota.position.addScaledVector(estado.direcao, estado.velocidade * delta);
+
+    // Limitar à arena — clamp nas paredes (T5 tratará colisão real)
+    var margem = 0.5; // metade da largura da mota
+    mota.position.x = Math.max(-LIMITE_ARENA + margem, Math.min(LIMITE_ARENA - margem, mota.position.x));
+    mota.position.z = Math.max(-LIMITE_ARENA + margem, Math.min(LIMITE_ARENA - margem, mota.position.z));
 
     // Salto parabólico (sin) — mantém altura base ao aterrar
     if (estado.saltando) {

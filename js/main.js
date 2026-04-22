@@ -137,7 +137,7 @@ aoIniciarJogo(function (mapa) {
     cena.add(motaJogador2);
 
     // --- Input: ligar teclado às motas recém-criadas ---
-    inicializarInput(motaJogador1, motaJogador2);
+    inicializarInput(motaJogador1, motaJogador2, ARENA);
 });
 
 // --- Redimensionamento ---
@@ -157,6 +157,8 @@ window.addEventListener('resize', function () {
 });
 
 // --- Input de teclado (câmaras / menu) ---
+var modoCamaraAnterior = 'livre';  // sentinela para snap inicial ao entrar em 3ª pessoa
+
 function aplicarModoCamara() {
     if (modoCamara === 'livre') {
         controlos.enabled = true;
@@ -199,8 +201,12 @@ function Start() {
     requestAnimationFrame(loop);
 }
 
-var offsetTerceiraPessoa = new THREE.Vector3(0, 4, -8);
-var offsetTemp = new THREE.Vector3();
+// Offset em espaço local da mota: a frente visual da mota aponta para -Z
+// (roda dianteira em ZF = -1.18 em mota.js), logo a traseira está em +Z → câmara atrás.
+var offsetTerceiraPessoa = new THREE.Vector3(0, 3.5, 8);
+var alvoTerceiraPessoa  = new THREE.Vector3(0, 1, -2);  // mira ligeiramente à frente da mota
+var posCamTemp = new THREE.Vector3();
+var alvoCamTemp = new THREE.Vector3();
 
 function loop() {
     var delta = reloginho.getDelta();
@@ -208,13 +214,29 @@ function loop() {
     atualizarJungle(delta);
     atualizarMotas(delta);
 
-    if (modoCamara === 'terceiraPessoa' && motaJogador1) {
-        offsetTemp.copy(offsetTerceiraPessoa).applyQuaternion(motaJogador1.quaternion);
-        camaraPerspetiva.position.copy(motaJogador1.position).add(offsetTemp);
-        camaraPerspetiva.lookAt(motaJogador1.position);
+    // A câmara segue a mota do jogador ativo (WASD → motaJogador2, rosa/vermelha).
+    var motaAlvo = motaJogador2;
+    if (modoCamara === 'terceiraPessoa' && motaAlvo) {
+        posCamTemp.copy(offsetTerceiraPessoa).applyQuaternion(motaAlvo.quaternion);
+        posCamTemp.add(motaAlvo.position);
+
+        alvoCamTemp.copy(alvoTerceiraPessoa).applyQuaternion(motaAlvo.quaternion);
+        alvoCamTemp.add(motaAlvo.position);
+
+        if (modoCamaraAnterior !== 'terceiraPessoa') {
+            // Primeira frame neste modo — snap sem lerp para evitar arrastar da posição da câmara livre
+            camaraPerspetiva.position.copy(posCamTemp);
+        } else {
+            camaraPerspetiva.position.lerp(posCamTemp, Math.min(1, 8 * delta));
+        }
+        camaraPerspetiva.lookAt(alvoCamTemp);
     }
 
-    controlos.update();
+    // OrbitControls.update() reescreve a posição da câmara mesmo com enabled=false;
+    // só o chamamos em modo livre para não anular a câmara 3ª pessoa.
+    if (modoCamara === 'livre') controlos.update();
+
+    modoCamaraAnterior = modoCamara;
     renderer.render(cena, camaraAtiva);
     requestAnimationFrame(loop);
 }

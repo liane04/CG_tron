@@ -1,8 +1,14 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { aoIniciarJogo, mostrarMenu } from './menu.js';
-import { criarArena, atualizarDeserto, atualizarJungle, atualizarNeve } from './arena.js';
+import { criarArena } from './arena.js';
 import { criarMota } from './mota.js';
+
+// Importar objetos decorativos e animações das arenas
+import { adicionarObjetosSpace, atualizarSpace }   from './objetos/arenaSpace.js';
+import { adicionarObjetosDeserto, atualizarDeserto } from './objetos/arenaDeserto.js';
+import { adicionarObjetosGelo, atualizarGelo }       from './objetos/arenaGelo.js';
+import { adicionarObjetosJungle, atualizarJungle }   from './objetos/arenaJungle.js';
 
 document.addEventListener('DOMContentLoaded', Start);
 
@@ -16,6 +22,7 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 document.body.appendChild(renderer.domElement);
 
 var reloginho = new THREE.Clock();
+var loaderGlobal = new THREE.TextureLoader();
 
 // --- Tamanho da arena ---
 var ARENA = 70;
@@ -52,7 +59,7 @@ controlos.enableDamping = true;
 controlos.dampingFactor = 0.08;
 controlos.target.set(0, 0, 0);
 
-// --- Iluminação base (T4 irá expandir com toggles) ---
+// --- Iluminação base ---
 var luzAmbiente = new THREE.AmbientLight(0x222244, 1.2);
 cena.add(luzAmbiente);
 
@@ -82,7 +89,7 @@ aoIniciarJogo(function (mapa) {
     var fogFar  = mapa.fogFar  !== undefined ? mapa.fogFar  : 120;
     cena.fog = mapa.temFog === false ? null : new THREE.Fog(corFog, fogNear, fogFar);
     luzAmbiente.color.set(mapa.luzAmbiente);
-    luzAmbiente.intensity = 1.2;   // valor por omissão; a jungle regula para baixo
+    luzAmbiente.intensity = 1.2;
 
     if (mapa.id === 'deserto') {
         luzDirecional.color.set(0xFFB347);
@@ -98,7 +105,6 @@ aoIniciarJogo(function (mapa) {
         luzDirecional.shadow.camera.far    = 150;
         luzDirecional.shadow.camera.updateProjectionMatrix();
     } else if (mapa.id === 'jungle') {
-        // Sol filtrado pelas copas — luz fria esverdeada, vinda de um ângulo lateral.
         luzAmbiente.intensity = 0.8;
         luzDirecional.color.set(0xa8d870);
         luzDirecional.intensity = 0.6;
@@ -113,7 +119,6 @@ aoIniciarJogo(function (mapa) {
         luzDirecional.shadow.camera.far    = 120;
         luzDirecional.shadow.camera.updateProjectionMatrix();
     } else if (mapa.id === 'gelo') {
-        // Luz principal branca intensa de ângulo baixo — rasante cria sombras longas
         luzAmbiente.intensity = 0.3;
         luzDirecional.color.set(0xffffff);
         luzDirecional.intensity = 3.0;
@@ -136,6 +141,17 @@ aoIniciarJogo(function (mapa) {
 
     grupoArena = criarArena(cena, ARENA, mapa);
 
+    // --- Adicionar objetos decorativos específicos injetados dos ficheiros externos ---
+    if (mapa.id === 'space') {
+        adicionarObjetosSpace(grupoArena, ARENA);
+    } else if (mapa.id === 'deserto') {
+        adicionarObjetosDeserto(grupoArena, ARENA, loaderGlobal, mapa);
+    } else if (mapa.id === 'jungle') {
+        adicionarObjetosJungle(grupoArena, ARENA);
+    } else if (mapa.id === 'gelo') {
+        adicionarObjetosGelo(grupoArena, ARENA);
+    }
+
     // --- Mota de pré-visualização no centro da arena ---
     var corNeon = mapa.corNeonMota !== undefined ? mapa.corNeonMota : 0x00ffff;
     grupoMota = criarMota(corNeon);
@@ -146,16 +162,13 @@ aoIniciarJogo(function (mapa) {
 // --- Redimensionamento ---
 window.addEventListener('resize', function () {
     var asp = window.innerWidth / window.innerHeight;
-
     camaraPerspetiva.aspect = asp;
     camaraPerspetiva.updateProjectionMatrix();
-
     camaraOrtografica.left = -tamanhoOrto * asp;
     camaraOrtografica.right = tamanhoOrto * asp;
     camaraOrtografica.top = tamanhoOrto;
     camaraOrtografica.bottom = -tamanhoOrto;
     camaraOrtografica.updateProjectionMatrix();
-
     renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
@@ -176,9 +189,13 @@ function Start() {
 
 function loop() {
     var delta = reloginho.getDelta();
+    
+    // Atualizar animações de todas as possíveis arenas
+    atualizarSpace(delta);
     atualizarDeserto(delta);
     atualizarJungle(delta);
-    atualizarNeve(delta);
+    atualizarGelo(delta);
+
     controlos.update();
     renderer.render(cena, camaraAtiva);
     requestAnimationFrame(loop);

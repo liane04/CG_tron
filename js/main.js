@@ -119,10 +119,11 @@ aoIniciarJogo(function (mapa) {
         luzDirecional.shadow.camera.far    = 120;
         luzDirecional.shadow.camera.updateProjectionMatrix();
     } else if (mapa.id === 'gelo') {
-        luzAmbiente.intensity = 0.3;
+        luzAmbiente.color.set(0x444444);
+        luzAmbiente.intensity = 0.5;
         luzDirecional.color.set(0xffffff);
         luzDirecional.intensity = 3.0;
-        luzDirecional.position.set(-40, 20, 10);
+        luzDirecional.position.set(-40, 60, 10);
         luzDirecional.castShadow = true;
         luzDirecional.shadow.mapSize.set(2048, 2048);
         luzDirecional.shadow.camera.left   = -45;
@@ -149,7 +150,7 @@ aoIniciarJogo(function (mapa) {
     } else if (mapa.id === 'jungle') {
         adicionarObjetosJungle(grupoArena, ARENA);
     } else if (mapa.id === 'gelo') {
-        adicionarObjetosGelo(grupoArena, ARENA);
+        adicionarObjetosGelo(grupoArena, ARENA, loaderGlobal);
     }
 
     // --- Mota de pré-visualização no centro da arena ---

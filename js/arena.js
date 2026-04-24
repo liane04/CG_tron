@@ -24,16 +24,19 @@ export function criarArena(cena, ARENA, mapa) {
 
         [texDiff, texNormal, texRough].forEach(function (t) {
             t.wrapS = t.wrapT = THREE.RepeatWrapping;
-            t.repeat.set(4, 4);
+            t.repeat.set(ehGelo ? 12 : 4, ehGelo ? 12 : 4); // Increase tiling for ice cracks
         });
 
         matChao = new THREE.MeshStandardMaterial({
             normalMap: ehGelo ? texNormal : undefined,
             map: ehGelo ? null : texDiff,
             roughnessMap: ehGelo ? null : texRough,
-            color: ehGelo ? 0x9bc4d8 : 0xffffff,
-            roughness: ehGelo ? 0.25 : 1.0,
-            metalness: ehGelo ? 0.15 : 0.0,
+            color: ehGelo ? 0x777777 : 0xffffff, // Escurecido para compensar a luz ambiente
+            roughness: ehGelo ? 0.8 : 1.0,
+            metalness: ehGelo ? 0.1 : 0.0,
+            transparent: false,
+            opacity: 1.0,
+            normalScale: ehGelo ? new THREE.Vector2(0.5, 0.5) : new THREE.Vector2(1, 1),
         });
     } else {
         matChao = new THREE.MeshStandardMaterial({

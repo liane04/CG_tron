@@ -9,16 +9,32 @@ export var blocosOrbitais = [];
 export function adicionarObjetosSpace(grupo, ARENA) {
     blocosOrbitais = []; 
 
-    const posicoes = [
+    // 1. Torres ADN (Pilares nos cantos centrais)
+    const posicoesADN = [
         new THREE.Vector3(18, 0, 18),
         new THREE.Vector3(-18, 0, 18),
         new THREE.Vector3(18, 0, -18),
         new THREE.Vector3(-18, 0, -18)
     ];
 
-    posicoes.forEach(pos => {
+    posicoesADN.forEach(pos => {
         const torreADN = criarNucleoADN(pos);
         grupo.add(torreADN);
+    });
+
+    // 2. Monólitos Matrix (Posicionados FORA da arena para efeito de fundo)
+    const configMonolitos = [
+        { pos: new THREE.Vector3(50, 0, 10), rot: 0.5, scale: 2.5 },
+        { pos: new THREE.Vector3(-55, -5, -20), rot: -0.3, scale: 3.0 },
+        { pos: new THREE.Vector3(20, 10, 60), rot: 1.2, scale: 2.0 },
+        { pos: new THREE.Vector3(-40, -10, -50), rot: -0.8, scale: 4.0 }
+    ];
+
+    configMonolitos.forEach(cfg => {
+        const monolito = criarMonolitoMatrix(cfg.pos);
+        monolito.rotation.y = cfg.rot;
+        monolito.scale.set(cfg.scale, cfg.scale, cfg.scale);
+        grupo.add(monolito);
     });
 }
 
@@ -28,8 +44,24 @@ export function adicionarObjetosSpace(grupo, ARENA) {
  */
 export function atualizarSpace(delta) {
     blocosOrbitais.forEach(grupoAnimacao => {
-        // Agora apenas o grupo das partículas roda
-        grupoAnimacao.rotation.y += 1.2 * delta; 
+        
+        // Se for o ADN, apenas roda (como fizemos antes)
+        if (!grupoAnimacao.userData.tipo) {
+            grupoAnimacao.rotation.y += 1.2 * delta; 
+        } 
+        // Se for o Monólito, faz os pixels deslizarem
+        else if (grupoAnimacao.userData.tipo === 'monolito') {
+            const pixels = grupoAnimacao.userData.pixels;
+            pixels.children.forEach(pixel => {
+                // Move o pixel
+                pixel.position.y += pixel.userData.velocidade * pixel.userData.direcao * delta;
+                
+                // Se sair dos limites da altura (16), volta para o outro lado
+                if (pixel.position.y > 16) pixel.position.y = 0;
+                if (pixel.position.y < 0) pixel.position.y = 16;
+            });
+        }
+        
     });
 }
 
@@ -223,4 +255,95 @@ function criarNucleoADN(posicao) {
     blocosOrbitais.push(grupoParticulas);
 
     return grupoTorre;
+}
+
+/**
+ * Constrói um Monólito de Dados "Matrix".
+ * Usa apenas BoxGeometry para cumprir os requisitos do projeto.
+ */
+function criarMonolitoMatrix(posicao) {
+    const grupoMonolito = new THREE.Group();
+    const grupoPixels = new THREE.Group(); // Subgrupo para os pixels móveis
+    
+    const largura = 3;
+    const alturaTotal = 16;
+    const profundidade = 3;
+
+    // --- Materiais ---
+    const matCore = new THREE.MeshStandardMaterial({ 
+        color: 0x000511, // Azul quase preto
+        metalness: 0.8, 
+        roughness: 0.2 
+    });
+    
+    const matPixelCiano = new THREE.MeshStandardMaterial({
+        color: 0x00ffff, emissive: 0x00ffff, emissiveIntensity: 4, toneMapped: false
+    });
+    
+    const matPixelVermelho = new THREE.MeshStandardMaterial({
+        color: 0xff0000, emissive: 0xff0000, emissiveIntensity: 4, toneMapped: false
+    });
+
+    const matPixelEscuro = new THREE.MeshStandardMaterial({
+        color: 0x222222, metalness: 1.0, roughness: 0.0
+    });
+
+    // 1. Núcleo Central (BoxGeometry estática)
+    const geoCore = new THREE.BoxGeometry(largura, alturaTotal, profundidade);
+    const core = new THREE.Mesh(geoCore, matCore);
+    core.position.y = alturaTotal / 2;
+    // Opcional: Para colisões no futuro
+    core.userData.isObstacle = true;
+    grupoMonolito.add(core);
+
+    // 2. Pixels de Dados (BoxGeometry animadas)
+    const numPixels = 800;
+    const geoPixel = new THREE.BoxGeometry(0.07, 0.07, 0.07);
+
+    for (let i = 0; i < numPixels; i++) {
+        // Escolher material aleatório (maioria escuros, alguns neon)
+        const rand = Math.random();
+        let mat = matPixelEscuro;
+        if (rand > 0.85) mat = matPixelCiano;
+        else if (rand > 0.70) mat = matPixelVermelho;
+
+        const pixel = new THREE.Mesh(geoPixel, mat);
+
+        // Posicionar na superfície do núcleo central
+        const face = Math.floor(Math.random() * 4); // 0, 1, 2 ou 3 (as 4 faces laterais)
+        const offset = (Math.random() - 0.5) * largura;
+        const distFace = largura / 2 + 0.1; // +0.1 para ficar ligeiramente fora da parede
+
+        if (face === 0) pixel.position.set(offset, 0, distFace);      // Frente
+        if (face === 1) pixel.position.set(offset, 0, -distFace);     // Trás
+        if (face === 2) pixel.position.set(distFace, 0, offset);      // Direita
+        if (face === 3) pixel.position.set(-distFace, 0, offset);     // Esquerda
+
+        // Atribuir uma altura inicial aleatória
+        pixel.position.y = Math.random() * alturaTotal;
+        
+        // Guardar dados de animação dentro do próprio pixel (velocidade e direção)
+        pixel.userData.velocidade = 2 + Math.random() * 15;
+        pixel.userData.direcao = Math.random() > 0.5 ? 1 : -1;
+
+        grupoPixels.add(pixel);
+    }
+
+    grupoMonolito.add(grupoPixels);
+    
+    // 3. Luz Pontual para iluminar a arena ao redor do monólito
+    const luz = new THREE.PointLight(0x00cfff, 30, 15, 2);
+    luz.position.set(0, alturaTotal / 2, 0);
+    grupoMonolito.add(luz);
+
+    // Configuração Final
+    grupoMonolito.position.copy(posicao);
+    
+    // Adicionamos um identificador para sabermos como o animar no loop
+    grupoMonolito.userData.tipo = 'monolito';
+    grupoMonolito.userData.pixels = grupoPixels;
+    
+    blocosOrbitais.push(grupoMonolito);
+
+    return grupoMonolito;
 }

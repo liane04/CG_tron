@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { aoIniciarJogo, mostrarMenu } from './menu.js';
 import { criarArena } from './arena.js';
 import { criarMota } from './mota.js';
@@ -23,6 +24,7 @@ document.body.appendChild(renderer.domElement);
 
 var reloginho = new THREE.Clock();
 var loaderGlobal = new THREE.TextureLoader();
+var loaderGLTF = new GLTFLoader();
 
 // --- Tamanho da arena ---
 var ARENA = 70;
@@ -146,7 +148,7 @@ aoIniciarJogo(function (mapa) {
     if (mapa.id === 'space') {
         adicionarObjetosSpace(grupoArena, ARENA);
     } else if (mapa.id === 'deserto') {
-        adicionarObjetosDeserto(grupoArena, ARENA, loaderGlobal, mapa);
+        adicionarObjetosDeserto(grupoArena, ARENA, loaderGlobal, mapa, loaderGLTF);
     } else if (mapa.id === 'jungle') {
         adicionarObjetosJungle(grupoArena, ARENA);
     } else if (mapa.id === 'gelo') {

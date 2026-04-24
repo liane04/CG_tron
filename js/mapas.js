@@ -38,7 +38,8 @@ export const mapas = [
             diffuse: './textures/areia/sandy_gravel_diff_2k.jpg',
             normal:  './textures/areia/sandy_gravel_nor_gl_2k.jpg',
             rough:   './textures/areia/sandy_gravel_rough_2k.jpg',
-        }
+        },
+        corNeonMota: 0xffff00
     },
     {
         id: 'jungle',

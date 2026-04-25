@@ -95,37 +95,49 @@ export function atualizarSpace(delta) {
         }
         // Se for o Drone Vigia
         else if (grupoAnimacao.userData.tipo === 'drone') {
-            // Rodar os anéis (Movimento aleatório individual)
-            const aneis = grupoAnimacao.userData.aneis;
-            if (aneis) {
-                aneis.children.forEach(anel => {
-                    anel.rotation.x += anel.userData.velX * delta;
-                    anel.rotation.y += anel.userData.velY * delta;
-                    anel.rotation.z += anel.userData.velZ * delta;
+            // Rodar o enxame de mini drones
+            const miniDrones = grupoAnimacao.userData.miniDrones;
+            if (miniDrones) {
+                // Roda a órbita inteira
+                miniDrones.rotation.y += 1.5 * delta;
+                
+                // Roda cada mini-drone individualmente
+                miniDrones.children.forEach(mini => {
+                    mini.rotation.x += 3.0 * delta;
+                    mini.rotation.z += 2.0 * delta;
                 });
             }
 
-            // Laser intermitente (Dura mais tempo agora)
-            const laser = grupoAnimacao.userData.laser;
-            if (laser) {
-                const tempo = Date.now() * 0.002; // Mais lento
-                if (Math.sin(tempo) > -0.6) { // Fica ligado 80% do tempo
-                    laser.material.opacity = 0.6;
-                } else {
-                    laser.material.opacity = 0.0;
-                }
+            // 1. Fazer a Aura "Respirar" (Pulsar)
+            const aura = grupoAnimacao.userData.aura;
+            if (aura) {
+                // ⚙️ PARÂMETROS DE ANIMAÇÃO (ALTERA AQUI)
+                const velocidadePulso = 0.005;
+                const brilhoMinimo = 0.3;
+                const intensidadePulso = 0.5;
+
+                const onda = Math.sin(Date.now() * velocidadePulso); 
+                const pulsoPositivo = (onda + 1) / 2; 
+                aura.material.opacity = brilhoMinimo + (pulsoPositivo * intensidadePulso);
             }
 
-            // Partículas do Laser (estilo Matrix a cair)
+            // 2. Fazer as Partículas "Choverem" como um feixe contínuo
             const particulas = grupoAnimacao.userData.particulas;
-            if (particulas && laser.material.opacity > 0) {
-                particulas.visible = true;
-                particulas.children.forEach(p => {
-                    p.position.y -= p.userData.velocidade * delta;
-                    if (p.position.y < -70) p.position.y = 0; // Volta ao topo do feixe
-                });
-            } else if (particulas) {
-                particulas.visible = false;
+            if (particulas) {
+                const pos = particulas.geometry.attributes.position.array;
+                const vels = particulas.userData.velocidades;
+                const limite = particulas.userData.alturaLimite;
+
+                // ⚙️ PARÂMETROS DE ANIMAÇÃO (ALTERA AQUI)
+                const velFluxo = 1.5; 
+
+                for (let i = 0; i < vels.length; i++) {
+                    pos[i * 3 + 1] -= vels[i] * velFluxo; 
+                    if (pos[i * 3 + 1] < -limite) {
+                        pos[i * 3 + 1] = 0; 
+                    }
+                }
+                particulas.geometry.attributes.position.needsUpdate = true;
             }
         }
         
@@ -639,77 +651,97 @@ function criarDroneVigia(posicao) {
         }
     });
 
-    // 2. Os Anéis de Contenção (5 Anéis, mais juntos e pequenos)
-    const grupoAneis = new THREE.Group();
-    // Cores: Seguindo o padrão de azul dominante com realce vermelho
-    const coresAneis = [0x00ffff, 0x00ffff, 0xff0000, 0x00ffff, 0x00ffff]; 
-    const raiosAneis = [2.2, 2.6, 3.0, 3.4, 3.8];
+    // 2. Os Mini Drones Orbitais (O Enxame)
+    const grupoMiniDrones = new THREE.Group();
     
-    raiosAneis.forEach((raio, i) => {
-        const matAnel = new THREE.MeshBasicMaterial({ 
-            color: coresAneis[i], 
-            wireframe: true,
-            transparent: true,
-            opacity: 0.5 // Menos brilhantes
-        });
-        const anel = new THREE.Mesh(new THREE.TorusGeometry(raio, 0.15, 8, 24), matAnel);
-        
-        anel.rotation.x = Math.random() * Math.PI;
-        anel.rotation.y = Math.random() * Math.PI;
-        
-        // Guardar velocidades aleatórias para o loop de animação
-        anel.userData = {
-            velX: (Math.random() - 0.5) * 3,
-            velY: (Math.random() - 0.5) * 3,
-            velZ: (Math.random() - 0.5) * 3
-        };
-        
-        grupoAneis.add(anel);
-    });
-    drone.add(grupoAneis);
-
-    // 3. O Feixe de Laser (Azul Escuro agora)
-    const alturaLaser = 70; 
-    const matLaser = new THREE.MeshBasicMaterial({
-        color: 0xff0000, // Azul Escuro
-        transparent: true,
-        opacity: 0.8,
-        blending: THREE.AdditiveBlending,
-        side: THREE.DoubleSide
-    });
-    
-    const geoLaser = new THREE.CylinderGeometry(0.3, 0.3, alturaLaser, 8);
-    geoLaser.translate(0, -alturaLaser / 2, 0); 
-    
-    const laser = new THREE.Mesh(geoLaser, matLaser);
-    drone.add(laser);
-
-    // 4. Partículas do Laser (Azul Claro estilo Matrix)
-    const grupoParticulas = new THREE.Group();
-    const matParticula = new THREE.MeshStandardMaterial({
-        color: 0x00ffff, // Azul Claro / Ciano
+    const matMiniDrone = new THREE.MeshStandardMaterial({
+        color: 0x050505,
         emissive: 0x00ffff,
-        emissiveIntensity: 4,
-        toneMapped: false
+        emissiveIntensity: 2,
+        wireframe: true
     });
-    const geoParticula = new THREE.BoxGeometry(0.1, 0.2, 0.1);
 
-    for (let i = 0; i < 150; i++) {
-        const p = new THREE.Mesh(geoParticula, matParticula);
-        // Distribuir no cilindro do laser
-        const ang = Math.random() * Math.PI * 2;
-        const dist = Math.random() * 0.25;
-        p.position.set(
-            Math.cos(ang) * dist,
-            -Math.random() * alturaLaser,
-            Math.sin(ang) * dist
-        );
-        p.userData.velocidade = 15 + Math.random() * 10;
-        grupoParticulas.add(p);
+    const numMiniDrones = 9;
+    const raioOrbita = 3.5;
+
+    for (let i = 0; i < numMiniDrones; i++) {
+        const angulo = (i / numMiniDrones) * Math.PI * 2;
+        const x = Math.cos(angulo) * raioOrbita;
+        const z = Math.sin(angulo) * raioOrbita;
+
+        const miniDrone = new THREE.Mesh(new THREE.OctahedronGeometry(0.4, 0), matMiniDrone);
+        miniDrone.position.set(x, 0, z);
+        miniDrone.rotation.y = -angulo; 
+
+        grupoMiniDrones.add(miniDrone);
     }
-    drone.add(grupoParticulas);
 
-    // 5. Luz de impacto no chão (Azul Claro para combinar com partículas)
+    // Inclinar o grupo inteiro para a órbita não ser "plana"
+    grupoMiniDrones.rotation.x = 0.4;
+    grupoMiniDrones.rotation.z = 0.2;
+    drone.add(grupoMiniDrones);
+
+    // 3. O FEIXE DE LASER ANIMADO (Núcleo + Aura + Partículas)
+    const alturaLaser = 70;
+
+    // ⚙️ PARÂMETROS DE ESTILO (ALTERA AQUI)
+    const corLaser = 0x00ffff;      // Cor principal do neon
+    const espessuraNucleo = 0.05;   // Grossura do centro branco
+    const espessuraAura = 0.55;     // Grossura do brilho colorido
+    const qtdParticulas = 200;     // Quantidade de faíscas no feixe
+    
+    // 3.1 NÚCLEO (Core) - Parte central branca ofuscante
+    const matNucleoLaser = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    const geoNucleoLaser = new THREE.CylinderGeometry(espessuraNucleo, espessuraNucleo, alturaLaser, 8);
+    geoNucleoLaser.translate(0, -alturaLaser / 2, 0); 
+    const nucleoLaser = new THREE.Mesh(geoNucleoLaser, matNucleoLaser);
+    drone.add(nucleoLaser);
+
+    // 3.2 AURA (Glow) - Brilho colorido transparente
+    const matAura = new THREE.MeshBasicMaterial({
+        color: corLaser,
+        transparent: true,
+        opacity: 0.5,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+    });
+    const geoAura = new THREE.CylinderGeometry(espessuraAura, espessuraAura, alturaLaser, 16);
+    geoAura.translate(0, -alturaLaser / 2, 0);
+    const aura = new THREE.Mesh(geoAura, matAura);
+    drone.add(aura);
+
+    // 3.3 PARTÍCULAS (Fluxo de Energia) - Faíscas a correr pelo laser
+    const geoParticulas = new THREE.BufferGeometry();
+    const posParticulas = new Float32Array(qtdParticulas * 3);
+    const velsParticulas = []; 
+
+    for (let i = 0; i < qtdParticulas; i++) {
+        const angulo = Math.random() * Math.PI * 2;
+        const raioDist = espessuraAura + (Math.random() * 0.4); 
+        
+        posParticulas[i * 3] = Math.cos(angulo) * raioDist;
+        posParticulas[i * 3 + 1] = -(Math.random() * alturaLaser);
+        posParticulas[i * 3 + 2] = Math.sin(angulo) * raioDist;
+        velsParticulas.push(0.3 + Math.random() * 0.7); 
+    }
+
+    geoParticulas.setAttribute('position', new THREE.BufferAttribute(posParticulas, 3));
+    const matParticulas = new THREE.PointsMaterial({
+        color: corLaser,
+        size: 0.2,
+        transparent: true,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+    });
+
+    const particulas = new THREE.Points(geoParticulas, matParticulas);
+    particulas.userData = {
+        velocidades: velsParticulas,
+        alturaLimite: alturaLaser
+    };
+    drone.add(particulas);
+
+    // 4. Luz de impacto no chão
     const luzImpacto = new THREE.PointLight(0x00ffff, 50, 15, 2);
     luzImpacto.position.y = -posicao.y + 1; 
     drone.add(luzImpacto);
@@ -718,9 +750,9 @@ function criarDroneVigia(posicao) {
 
     // Configurar para animação
     drone.userData.tipo = 'drone';
-    drone.userData.aneis = grupoAneis;
-    drone.userData.laser = laser;
-    drone.userData.particulas = grupoParticulas;
+    drone.userData.miniDrones = grupoMiniDrones;
+    drone.userData.aura = aura;
+    drone.userData.particulas = particulas;
     blocosOrbitais.push(drone);
 
     return drone;

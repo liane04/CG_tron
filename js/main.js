@@ -146,7 +146,7 @@ aoIniciarJogo(function (mapa) {
 
     // --- Adicionar objetos decorativos específicos injetados dos ficheiros externos ---
     if (mapa.id === 'space') {
-        adicionarObjetosSpace(grupoArena, ARENA);
+        adicionarObjetosSpace(grupoArena, ARENA, loaderGlobal);
     } else if (mapa.id === 'deserto') {
         adicionarObjetosDeserto(grupoArena, ARENA, loaderGlobal, mapa, loaderGLTF);
     } else if (mapa.id === 'jungle') {

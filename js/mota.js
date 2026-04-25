@@ -25,18 +25,27 @@ export function criarMota(corNeon = 0x00ffff) {
     const texPneuDiff  = loader.load('./textures/mota/concrete_tile_facade_diff_2k.jpg');
     const texPneuNor   = loader.load('./textures/mota/concrete_tile_facade_nor_gl_2k.jpg');
     const texPneuRough = loader.load('./textures/mota/concrete_tile_facade_rough_2k.jpg');
-    // Textura de metal (para partes do chassis e motor)
-    const texMetal     = loader.load('./textures/mota/metal_texture.png');
+    // Texturas de metal PBR (para o chassis e detalhes)
+    const pathMetal = './textures/mota/metal/Metal_006_';
+    const texMetalDiff = loader.load(pathMetal + 'basecolor.jpg');
+    const texMetalNor  = loader.load(pathMetal + 'normal.jpg');
+    const texMetalRou  = loader.load(pathMetal + 'roughness.jpg');
+    const texMetalMet  = loader.load(pathMetal + 'metallic.jpg');
+    const texMetalAO   = loader.load(pathMetal + 'ambientOcclusion.jpg');
     
-    [texPneuDiff, texPneuNor, texPneuRough, texMetal].forEach(t => {
+    [texPneuDiff, texPneuNor, texPneuRough, texMetalDiff, texMetalNor, texMetalRou, texMetalMet, texMetalAO].forEach(t => {
         t.wrapS = t.wrapT = THREE.RepeatWrapping;
-        t.anisotropy = 16; // Máxima nitidez em ângulos rasos
+        t.anisotropy = 16;
     });
     
     texPneuDiff.repeat.set(3, 1);
     texPneuNor.repeat.set(3, 1);
     texPneuRough.repeat.set(3, 1);
-    texMetal.repeat.set(2, 2);
+    
+    const repeatMetal = [2, 2];
+    [texMetalDiff, texMetalNor, texMetalRou, texMetalMet, texMetalAO].forEach(t => {
+        t.repeat.set(...repeatMetal);
+    });
 
     // ─── Materiais ──────────────────────────────────────────────────────────────
     const matPneuTex = new THREE.MeshStandardMaterial({
@@ -50,27 +59,39 @@ export function criarMota(corNeon = 0x00ffff) {
     });
 
     const matMetalTex = new THREE.MeshStandardMaterial({
-        map:       texMetal,
-        roughness: 0.25,
-        metalness: 0.90,
-        color:     0x111111,
-        side:      THREE.DoubleSide,
+        map:          texMetalDiff,
+        normalMap:    texMetalNor,
+        roughnessMap: texMetalRou,
+        metalnessMap: texMetalMet,
+        aoMap:        texMetalAO,
+        color:        0x151515, // Preto metálico
+        roughness:    0.3,
+        metalness:    1.0,
+        side:         THREE.DoubleSide,
     });
 
     const matCasco = new THREE.MeshStandardMaterial({
-        map:       texMetal,
-        color:     0x080808,
-        metalness: 0.95,
-        roughness: 0.12,
-        side:      THREE.DoubleSide,
+        map:          texMetalDiff,
+        normalMap:    texMetalNor,
+        roughnessMap: texMetalRou,
+        metalnessMap: texMetalMet,
+        aoMap:        texMetalAO,
+        color:        0x080808, // Preto profundo
+        metalness:    1.0,
+        roughness:    0.15,
+        side:         THREE.DoubleSide,
     });
     
     const matCascoEscuro = new THREE.MeshStandardMaterial({
-        map:       texMetal,
-        color:     0x020202,
-        metalness: 0.8,
-        roughness: 0.3,
-        side:      THREE.DoubleSide,
+        map:          texMetalDiff,
+        normalMap:    texMetalNor,
+        roughnessMap: texMetalRou,
+        metalnessMap: texMetalMet,
+        aoMap:        texMetalAO,
+        color:        0x020202, // Quase preto absoluto
+        metalness:    0.9,
+        roughness:    0.4,
+        side:         THREE.DoubleSide,
     });
     
     const matNeon = new THREE.MeshStandardMaterial({

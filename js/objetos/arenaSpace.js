@@ -6,7 +6,7 @@ export var blocosOrbitais = [];
 /**
  * Adiciona todos os elementos decorativos da arena Space.
  */
-export function adicionarObjetosSpace(grupo, ARENA) {
+export function adicionarObjetosSpace(grupo, ARENA, loader) {
     blocosOrbitais = []; 
 
     // 1. Torres ADN (Pilares nos cantos centrais)
@@ -20,13 +20,13 @@ export function adicionarObjetosSpace(grupo, ARENA) {
     posicoesADN.forEach(pos => {
         const torreADN = criarNucleoADN(pos);
         grupo.add(torreADN);
-
-        // Adicionar Anéis flutuando acima de cada torre ADN (altura torre=14 + offset=3)
-        const posTopo = pos.clone().add(new THREE.Vector3(0, 17, 0));
-        grupo.add(criarAneisSaturno(posTopo));
     });
 
-    // 2. Monólitos Matrix (Posicionados FORA da arena para efeito de fundo)
+    // 2. Drone Vigia (Apenas 1 conforme solicitado)
+    const posDrone = new THREE.Vector3(30, 35, 30);
+    grupo.add(criarDroneVigia(posDrone));
+
+    // 3. Monólitos Matrix (Posicionados FORA da arena para efeito de fundo)
     const configMonolitos = [
         { pos: new THREE.Vector3(50, 0, 10), rot: 0.5, scale: 2.5 },
         { pos: new THREE.Vector3(-55, -5, -20), rot: -0.3, scale: 3.0 },
@@ -52,10 +52,10 @@ export function adicionarObjetosSpace(grupo, ARENA) {
             z = (Math.random() - 0.5) * 60;
         } while (Math.sqrt(x * x + z * z) < raioSeguro);
 
-        const posHUD = new THREE.Vector3(x, 2.5, z);
-        const hudObstaculo = criarHUDHolografico(posHUD, 0x00ffff);
+        const posHUD = new THREE.Vector3(x, 1.6, z);
+        const hudObstaculo = criarHUDHolografico(posHUD, 0x00ffff, loader);
         hudObstaculo.rotation.y = Math.random() * Math.PI * 2;
-        hudObstaculo.userData.baseY = 2.5;
+        hudObstaculo.userData.baseY = 1.6;
         hudObstaculo.userData.isObstacle = true; 
         grupo.add(hudObstaculo);
     }
@@ -93,10 +93,40 @@ export function atualizarSpace(delta) {
                 }
             });
         }
-        // Se for o HUD, faz uma flutuação suave
-        else if (grupoAnimacao.userData.tipo === 'hud') {
-            const tempo = Date.now() * 0.002;
-            grupoAnimacao.position.y = grupoAnimacao.userData.baseY + Math.sin(tempo) * 0.5;
+        // Se for o Drone Vigia
+        else if (grupoAnimacao.userData.tipo === 'drone') {
+            // Rodar os anéis (Movimento aleatório individual)
+            const aneis = grupoAnimacao.userData.aneis;
+            if (aneis) {
+                aneis.children.forEach(anel => {
+                    anel.rotation.x += anel.userData.velX * delta;
+                    anel.rotation.y += anel.userData.velY * delta;
+                    anel.rotation.z += anel.userData.velZ * delta;
+                });
+            }
+
+            // Laser intermitente (Dura mais tempo agora)
+            const laser = grupoAnimacao.userData.laser;
+            if (laser) {
+                const tempo = Date.now() * 0.002; // Mais lento
+                if (Math.sin(tempo) > -0.6) { // Fica ligado 80% do tempo
+                    laser.material.opacity = 0.6;
+                } else {
+                    laser.material.opacity = 0.0;
+                }
+            }
+
+            // Partículas do Laser (estilo Matrix a cair)
+            const particulas = grupoAnimacao.userData.particulas;
+            if (particulas && laser.material.opacity > 0) {
+                particulas.visible = true;
+                particulas.children.forEach(p => {
+                    p.position.y -= p.userData.velocidade * delta;
+                    if (p.position.y < -70) p.position.y = 0; // Volta ao topo do feixe
+                });
+            } else if (particulas) {
+                particulas.visible = false;
+            }
         }
         
     });
@@ -434,19 +464,39 @@ function criarAneisSaturno(posicao) {
 /**
  * Cria um cluster de ecrãs holográficos fragmentados (HUD).
  */
-function criarHUDHolografico(posicao, corNeon) {
+function criarHUDHolografico(posicao, corNeon, loader) {
     const grupoHUD = new THREE.Group();
 
-    // 1. Material de Vidro Holográfico (Mais opaco e brilhante para ser um obstáculo visível)
+    // 1. Carregar texturas de vidro
+    const path = './textures/neon/vidro/Glass_Window_003_';
+    const texBase = loader.load(path + 'basecolor.jpg');
+    const texNormal = loader.load(path + 'normal.jpg');
+    const texRough = loader.load(path + 'roughness.jpg');
+    const texMetal = loader.load(path + 'metallic.jpg');
+    const texAlpha = loader.load(path + 'opacity.jpg');
+    const texAO = loader.load(path + 'ambientOcclusion.jpg');
+
+    // Configurar repetição para detalhe
+    [texBase, texNormal, texRough, texMetal, texAlpha, texAO].forEach(tex => {
+        tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+        tex.repeat.set(1, 1);
+    });
+
+    // 2. Material de Vidro Holográfico com Texturas
     const matVidro = new THREE.MeshStandardMaterial({
-        color: corNeon,
-        emissive: corNeon,
-        emissiveIntensity: 4, // Muito mais brilhante
+        map: texBase,
+        normalMap: texNormal,
+        roughnessMap: texRough,
+        metalnessMap: texMetal,
+        alphaMap: texAlpha,
+        aoMap: texAO,
+        color: 0x00ffff, // "Azum" para combinar com o resto
+        emissive: 0x00ffff,
+        emissiveIntensity: 2, 
         transparent: true,
-        opacity: 0.8, // Mais opaco
-        metalness: 0.9,
-        roughness: 0.05,
-        blending: THREE.AdditiveBlending,
+        opacity: 0.9, 
+        metalness: 1.0,
+        roughness: 0.1,
         side: THREE.DoubleSide
     });
 
@@ -485,16 +535,193 @@ function criarHUDHolografico(posicao, corNeon) {
     ecraDir.rotation.y = -Math.PI / 8;
     grupoHUD.add(ecraDir);
 
-    // 4. Luz de Emissão (Reduzida para não ofuscar)
-    const luzEcra = new THREE.PointLight(corNeon, 3, 8);
-    luzEcra.position.z = 1; 
+    // 4. Luz de Emissão
+    const luzEcra = new THREE.PointLight(0x00ffff, 50, 15, 2);
+    luzEcra.position.set(0, 0, 1.5); 
     grupoHUD.add(luzEcra);
+
+    // Luz adicional para realçar o efeito de vidro azul
+    const luzExtra = new THREE.PointLight(0x0088ff, 30, 10, 2);
+    luzExtra.position.set(0, 2, -1);
+    grupoHUD.add(luzExtra);
 
     grupoHUD.position.copy(posicao);
     
-    // Identificador para animação
+    // Identificador para animação (desativado conforme pedido)
     grupoHUD.userData.tipo = 'hud';
-    blocosOrbitais.push(grupoHUD);
     
     return grupoHUD;
+}
+
+/**
+ * Constrói um Drone Vigia com laser intermitente.
+ */
+function criarDroneVigia(posicao) {
+    const drone = new THREE.Group();
+
+    // 1. O Núcleo (Preto com contornos neon subdivididos)
+    const matNucleo = new THREE.MeshStandardMaterial({
+        color: 0x050505,
+        metalness: 0.9,
+        roughness: 0.1
+    });
+
+    // Criar Geometria de Octaedro Subdividida (Cada face em 3)
+    const geoNucleo = new THREE.BufferGeometry();
+    const verticesOcta = [
+        [1.5, 0, 0], [-1.5, 0, 0], [0, 1.5, 0], [0, -1.5, 0], [0, 0, 1.5], [0, 0, -1.5]
+    ];
+    const facesOcta = [
+        [0, 2, 4], [0, 4, 3], [0, 3, 5], [0, 5, 2],
+        [1, 4, 2], [1, 3, 4], [1, 5, 3], [1, 2, 5]
+    ];
+
+    const posicoes = [];
+    const centrosFaces = []; // Guardar para os traços neon
+
+    facesOcta.forEach(f => {
+        const v1 = verticesOcta[f[0]];
+        const v2 = verticesOcta[f[1]];
+        const v3 = verticesOcta[f[2]];
+        
+        // Centro da face
+        const cx = (v1[0] + v2[0] + v3[0]) / 3;
+        const cy = (v1[1] + v2[1] + v3[1]) / 3;
+        const cz = (v1[2] + v2[2] + v3[2]) / 3;
+        const centro = [cx, cy, cz];
+        centrosFaces.push(centro);
+
+        // 3 Triângulos por face
+        posicoes.push(...v1, ...v2, ...centro);
+        posicoes.push(...v2, ...v3, ...centro);
+        posicoes.push(...v3, ...v1, ...centro);
+    });
+
+    geoNucleo.setAttribute('position', new THREE.Float32BufferAttribute(posicoes, 3));
+    geoNucleo.computeVertexNormals();
+    const nucleo = new THREE.Mesh(geoNucleo, matNucleo);
+    drone.add(nucleo);
+
+    // 1.1 Contornos Neon Extra Brilhantes
+    const matNeonBrilhante = new THREE.MeshStandardMaterial({
+        color: 0x00ffff,
+        emissive: 0x00ffff,
+        emissiveIntensity: 15,
+        toneMapped: false
+    });
+
+    // Função para criar um "traço" neon (cilindro fino)
+    function criarTraco(p1, p2) {
+        const v1 = new THREE.Vector3(...p1);
+        const v2 = new THREE.Vector3(...p2);
+        const dist = v1.distanceTo(v2);
+        const geoTraco = new THREE.CylinderGeometry(0.02, 0.02, dist, 4);
+        const traco = new THREE.Mesh(geoTraco, matNeonBrilhante);
+        
+        traco.position.copy(v1).lerp(v2, 0.5);
+        traco.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), v2.clone().sub(v1).normalize());
+        return traco;
+    }
+
+    // Adicionar arestas externas e internas (subdivisão)
+    facesOcta.forEach((f, i) => {
+        const vIndices = [f[0], f[1], f[2]];
+        const centro = centrosFaces[i];
+        
+        // Arestas externas da face (apenas se ainda não existirem, mas vamos simplificar)
+        for (let j = 0; j < 3; j++) {
+            const p1 = verticesOcta[vIndices[j]];
+            const p2 = verticesOcta[vIndices[(j + 1) % 3]];
+            nucleo.add(criarTraco(p1, p2));
+            
+            // Traço interno (vértice ao centro)
+            nucleo.add(criarTraco(p1, centro));
+        }
+    });
+
+    // 2. Os Anéis de Contenção (5 Anéis, mais juntos e pequenos)
+    const grupoAneis = new THREE.Group();
+    // Cores: Seguindo o padrão de azul dominante com realce vermelho
+    const coresAneis = [0x00ffff, 0x00ffff, 0xff0000, 0x00ffff, 0x00ffff]; 
+    const raiosAneis = [2.2, 2.6, 3.0, 3.4, 3.8];
+    
+    raiosAneis.forEach((raio, i) => {
+        const matAnel = new THREE.MeshBasicMaterial({ 
+            color: coresAneis[i], 
+            wireframe: true,
+            transparent: true,
+            opacity: 0.5 // Menos brilhantes
+        });
+        const anel = new THREE.Mesh(new THREE.TorusGeometry(raio, 0.15, 8, 24), matAnel);
+        
+        anel.rotation.x = Math.random() * Math.PI;
+        anel.rotation.y = Math.random() * Math.PI;
+        
+        // Guardar velocidades aleatórias para o loop de animação
+        anel.userData = {
+            velX: (Math.random() - 0.5) * 3,
+            velY: (Math.random() - 0.5) * 3,
+            velZ: (Math.random() - 0.5) * 3
+        };
+        
+        grupoAneis.add(anel);
+    });
+    drone.add(grupoAneis);
+
+    // 3. O Feixe de Laser (Azul Escuro agora)
+    const alturaLaser = 70; 
+    const matLaser = new THREE.MeshBasicMaterial({
+        color: 0xff0000, // Azul Escuro
+        transparent: true,
+        opacity: 0.8,
+        blending: THREE.AdditiveBlending,
+        side: THREE.DoubleSide
+    });
+    
+    const geoLaser = new THREE.CylinderGeometry(0.3, 0.3, alturaLaser, 8);
+    geoLaser.translate(0, -alturaLaser / 2, 0); 
+    
+    const laser = new THREE.Mesh(geoLaser, matLaser);
+    drone.add(laser);
+
+    // 4. Partículas do Laser (Azul Claro estilo Matrix)
+    const grupoParticulas = new THREE.Group();
+    const matParticula = new THREE.MeshStandardMaterial({
+        color: 0x00ffff, // Azul Claro / Ciano
+        emissive: 0x00ffff,
+        emissiveIntensity: 4,
+        toneMapped: false
+    });
+    const geoParticula = new THREE.BoxGeometry(0.1, 0.2, 0.1);
+
+    for (let i = 0; i < 150; i++) {
+        const p = new THREE.Mesh(geoParticula, matParticula);
+        // Distribuir no cilindro do laser
+        const ang = Math.random() * Math.PI * 2;
+        const dist = Math.random() * 0.25;
+        p.position.set(
+            Math.cos(ang) * dist,
+            -Math.random() * alturaLaser,
+            Math.sin(ang) * dist
+        );
+        p.userData.velocidade = 15 + Math.random() * 10;
+        grupoParticulas.add(p);
+    }
+    drone.add(grupoParticulas);
+
+    // 5. Luz de impacto no chão (Azul Claro para combinar com partículas)
+    const luzImpacto = new THREE.PointLight(0x00ffff, 50, 15, 2);
+    luzImpacto.position.y = -posicao.y + 1; 
+    drone.add(luzImpacto);
+
+    drone.position.copy(posicao);
+
+    // Configurar para animação
+    drone.userData.tipo = 'drone';
+    drone.userData.aneis = grupoAneis;
+    drone.userData.laser = laser;
+    drone.userData.particulas = grupoParticulas;
+    blocosOrbitais.push(drone);
+
+    return drone;
 }

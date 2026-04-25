@@ -20,6 +20,10 @@ export function adicionarObjetosSpace(grupo, ARENA) {
     posicoesADN.forEach(pos => {
         const torreADN = criarNucleoADN(pos);
         grupo.add(torreADN);
+
+        // Adicionar Anéis flutuando acima de cada torre ADN (altura torre=14 + offset=3)
+        const posTopo = pos.clone().add(new THREE.Vector3(0, 17, 0));
+        grupo.add(criarAneisSaturno(posTopo));
     });
 
     // 2. Monólitos Matrix (Posicionados FORA da arena para efeito de fundo)
@@ -36,6 +40,25 @@ export function adicionarObjetosSpace(grupo, ARENA) {
         monolito.scale.set(cfg.scale, cfg.scale, cfg.scale);
         grupo.add(monolito);
     });
+
+    // 3. HUDs como Obstáculos (Mini-Paredes de Vidro)
+    // Apenas 2 objetos na arena, conforme solicitado
+    const numObstaculos = 2;
+    for (let i = 0; i < numObstaculos; i++) {
+        let x, z;
+        const raioSeguro = 15;
+        do {
+            x = (Math.random() - 0.5) * 60;
+            z = (Math.random() - 0.5) * 60;
+        } while (Math.sqrt(x * x + z * z) < raioSeguro);
+
+        const posHUD = new THREE.Vector3(x, 2.5, z);
+        const hudObstaculo = criarHUDHolografico(posHUD, 0x00ffff);
+        hudObstaculo.rotation.y = Math.random() * Math.PI * 2;
+        hudObstaculo.userData.baseY = 2.5;
+        hudObstaculo.userData.isObstacle = true; 
+        grupo.add(hudObstaculo);
+    }
 }
 
 
@@ -60,6 +83,20 @@ export function atualizarSpace(delta) {
                 if (pixel.position.y > 16) pixel.position.y = 0;
                 if (pixel.position.y < 0) pixel.position.y = 16;
             });
+        }
+        // Se for Saturno, anima a rotação de cada anel individualmente
+        else if (grupoAnimacao.userData.tipo === 'saturno') {
+            grupoAnimacao.children.forEach(anel => {
+                if (anel.name === 'anelAnimado') {
+                    anel.rotation.x += anel.userData.velocidadeX * delta * 60;
+                    anel.rotation.y += anel.userData.velocidadeY * delta * 60;
+                }
+            });
+        }
+        // Se for o HUD, faz uma flutuação suave
+        else if (grupoAnimacao.userData.tipo === 'hud') {
+            const tempo = Date.now() * 0.002;
+            grupoAnimacao.position.y = grupoAnimacao.userData.baseY + Math.sin(tempo) * 0.5;
         }
         
     });
@@ -346,4 +383,118 @@ function criarMonolitoMatrix(posicao) {
     blocosOrbitais.push(grupoMonolito);
 
     return grupoMonolito;
+}
+
+/**
+ * Cria um objeto de Anéis de Saturno (Giroscópio) com animação retro.
+ */
+function criarAneisSaturno(posicao) {
+    const grupo = new THREE.Group();
+    
+    // Materiais em modo "Arame" (Wireframe) para o look retro
+    const matCiano = new THREE.MeshBasicMaterial({ color: 0x00ffff, wireframe: true });
+    const matVermelho = new THREE.MeshBasicMaterial({ color: 0xff0000, wireframe: true });
+
+    // Raios ajustados: o maior tem o raio do cilindro (1.8), combinando os diâmetros
+    const raios = [1.0, 1.4, 1.8];
+    const materiais = [matCiano, matVermelho, matCiano];
+
+    raios.forEach((raio, index) => {
+        // TorusGeometry(raio, espessura_do_tubo, segmentos_radiais, segmentos_tubulares)
+        const anel = new THREE.Mesh(new THREE.TorusGeometry(raio, 0.2, 8, 24), materiais[index]);
+        
+        // Inclinar cada anel de forma diferente para não ficarem colados
+        anel.rotation.x = Math.random() * Math.PI;
+        anel.rotation.y = Math.random() * Math.PI;
+        
+        // Etiqueta crucial para os podermos animar mais tarde
+        anel.name = 'anelAnimado'; 
+        // Velocidades de rotação únicas guardadas no próprio objeto
+        anel.userData = {
+            velocidadeX: (Math.random() - 0.5) * 0.05,
+            velocidadeY: (Math.random() - 0.5) * 0.05
+        };
+        
+        grupo.add(anel);
+    });
+
+    // Luz a emanar do centro do giroscópio
+    const luz = new THREE.PointLight(0x00ffff, 10, 20);
+    grupo.add(luz);
+
+    grupo.position.copy(posicao);
+    
+    // Identificador para animação
+    grupo.userData.tipo = 'saturno';
+    blocosOrbitais.push(grupo);
+
+    return grupo;
+}
+
+/**
+ * Cria um cluster de ecrãs holográficos fragmentados (HUD).
+ */
+function criarHUDHolografico(posicao, corNeon) {
+    const grupoHUD = new THREE.Group();
+
+    // 1. Material de Vidro Holográfico (Mais opaco e brilhante para ser um obstáculo visível)
+    const matVidro = new THREE.MeshStandardMaterial({
+        color: corNeon,
+        emissive: corNeon,
+        emissiveIntensity: 4, // Muito mais brilhante
+        transparent: true,
+        opacity: 0.8, // Mais opaco
+        metalness: 0.9,
+        roughness: 0.05,
+        blending: THREE.AdditiveBlending,
+        side: THREE.DoubleSide
+    });
+
+    const matContorno = new THREE.LineBasicMaterial({ 
+        color: corNeon, 
+        transparent: true, 
+        opacity: 0.8 
+    });
+
+    // 2. Função auxiliar para criar uma placa individual
+    function criarPlaca(raio, lados, x, y, z, rotacaoZ) {
+        // Cilindro com altura mínima vira um ecrã plano
+        const geo = new THREE.CylinderGeometry(raio, raio, 0.05, lados);
+        const placa = new THREE.Mesh(geo, matVidro);
+        
+        placa.rotation.x = Math.PI / 2;
+        placa.rotation.z = rotacaoZ; 
+        placa.position.set(x, y, z);
+
+        const moldura = new THREE.LineSegments(new THREE.EdgesGeometry(geo), matContorno);
+        placa.add(moldura);
+
+        return placa;
+    }
+
+    // 3. Montagem do Cluster (Tamanhos reduzidos para mini-paredes)
+    // Ecrã Central
+    grupoHUD.add(criarPlaca(1.5, 6, 0, 0, 0, Math.PI / 6));
+
+    // Ecrãs Laterais Curvados
+    const ecraEsq = criarPlaca(1.0, 6, -2.2, 0, 0.6, Math.PI / 6);
+    ecraEsq.rotation.y = Math.PI / 8; 
+    grupoHUD.add(ecraEsq);
+
+    const ecraDir = criarPlaca(1.0, 6, 2.2, 0, 0.6, Math.PI / 6);
+    ecraDir.rotation.y = -Math.PI / 8;
+    grupoHUD.add(ecraDir);
+
+    // 4. Luz de Emissão (Reduzida para não ofuscar)
+    const luzEcra = new THREE.PointLight(corNeon, 3, 8);
+    luzEcra.position.z = 1; 
+    grupoHUD.add(luzEcra);
+
+    grupoHUD.position.copy(posicao);
+    
+    // Identificador para animação
+    grupoHUD.userData.tipo = 'hud';
+    blocosOrbitais.push(grupoHUD);
+    
+    return grupoHUD;
 }

@@ -4,7 +4,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { aoIniciarJogo, mostrarMenu } from './menu.js';
 import { criarArena } from './arena.js';
 import { criarMota } from './mota.js';
-import { criarSkate } from './skate.js';
+import { criarSkate, atualizarSkate } from './skate.js';
 
 // Importar objetos decorativos e animações das arenas
 import { adicionarObjetosSpace, atualizarSpace }   from './objetos/arenaSpace.js';
@@ -203,6 +203,7 @@ function loop() {
     atualizarDeserto(delta);
     atualizarJungle(delta);
     atualizarGelo(delta);
+    atualizarSkate(delta);
 
     controlos.update();
     renderer.render(cena, camaraAtiva);

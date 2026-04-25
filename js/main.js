@@ -4,6 +4,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { aoIniciarJogo, mostrarMenu } from './menu.js';
 import { criarArena } from './arena.js';
 import { criarMota } from './mota.js';
+import { criarSkate } from './skate.js';
 
 // Importar objetos decorativos e animações das arenas
 import { adicionarObjetosSpace, atualizarSpace }   from './objetos/arenaSpace.js';
@@ -158,8 +159,12 @@ aoIniciarJogo(function (mapa) {
     // --- Mota de pré-visualização no centro da arena ---
     var corNeon = mapa.corNeonMota !== undefined ? mapa.corNeonMota : 0x00ffff;
     grupoMota = criarMota(corNeon);
-    grupoMota.position.set(0, 0, 0);
+    grupoMota.position.set(-2, 0, 0);
     cena.add(grupoMota);
+
+    var grupoSkate = criarSkate(corNeon);
+    grupoSkate.position.set(2, 0, 0);
+    cena.add(grupoSkate);
 });
 
 // --- Redimensionamento ---

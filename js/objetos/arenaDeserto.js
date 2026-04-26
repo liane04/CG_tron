@@ -42,9 +42,9 @@ export function adicionarObjetosDeserto(grupo, ARENA, loader, mapa, loaderGLTF) 
     grupo.add(criarTorreCristal(new THREE.Vector3(-30, 0, 0), 3, 0xffff00, loader));
 
     // --- Pirâmide Voxel (Fundo/Horizonte) ---
-    // Colocada longe e grande para efeito de escala épica
-    const piramide = criarPiramideVoxel(new THREE.Vector3(0, -2, -120), 8, 0xffff00, loader);
-    piramide.scale.set(4, 4, 4);
+    // Aumentamos os níveis para 25 e diminuímos o tamanho do cubo para detalhe voxel fino
+    const piramide = criarPiramideVoxel(new THREE.Vector3(0, -5, -130), 25, 0xffff00, loader);
+    piramide.scale.set(3, 3, 3);
     grupo.add(piramide);
 
     // --- Ceu ---
@@ -598,48 +598,99 @@ function criarTorreCristal(posicao, numModulos, corNeon, loader) {
  */
 function criarPiramideVoxel(posicao, niveis, corNeon, loader) {
     const grupo = new THREE.Group();
-    const tamanhoCubo = 2; 
+    const tamanhoCubo = 0.6; // Blocos mais pequenos para maior detalhe
 
-    // Carregar textura para os voxels
+    // 1. Carregar texturas de glifos com alta visibilidade
     const path = './textures/areia/hieloglifos/Wall_Stone_Hieroglyphs_001_';
-    const texGlifos = loader.load(path + 'basecolor.jpg');
-    texGlifos.wrapS = texGlifos.wrapT = THREE.RepeatWrapping;
-    texGlifos.repeat.set(0.5, 0.5);
+    const texDiff = loader.load(path + 'basecolor.jpg');
+    const texNormal = loader.load(path + 'normal.jpg');
+    const texAO = loader.load(path + 'ambientOcclusion.jpg');
+    const texRough = loader.load(path + 'roughness.jpg');
 
-    const matCubo = new THREE.MeshStandardMaterial({
-        map: texGlifos,
-        color: 0x1a0d00,
-        metalness: 0.8,
-        roughness: 0.2
+    [texDiff, texNormal, texAO, texRough].forEach(t => {
+        t.wrapS = t.wrapT = THREE.RepeatWrapping;
+        t.repeat.set(1, 1);
     });
 
-    const matContorno = new THREE.LineBasicMaterial({ color: corNeon });
+    // Material castanho clarinho com glifos bem visíveis
+    const matCubo = new THREE.MeshStandardMaterial({
+        map: texDiff,
+        normalMap: texNormal,
+        aoMap: texAO,
+        roughnessMap: texRough,
+        color: 0xD2B48C, // Castanho clarinho (Tan)
+        metalness: 0.1,
+        roughness: 0.8
+    });
 
+    // 2. Calcular número total de instâncias para InstancedMesh (oco, sem o topo)
+    let totalInstancias = 0;
+    for (let y = 0; y < niveis - 2; y++) {
+        let L = niveis - 1 - y; // -1 para terminar em L=0 no topo
+        totalInstancias += (y === 0) ? Math.pow(2 * L + 1, 2) : 8 * L;
+    }
+
+    const geo = new THREE.BoxGeometry(tamanhoCubo * 0.98, tamanhoCubo * 0.98, tamanhoCubo * 0.98);
+    const geoEdges = new THREE.EdgesGeometry(geo);
+    const meshInstanciada = new THREE.InstancedMesh(geo, matCubo, totalInstancias);
+    meshInstanciada.castShadow = true;
+    meshInstanciada.receiveShadow = true;
+
+    const matTopNeon = new THREE.MeshStandardMaterial({
+        color: corNeon,
+        emissive: corNeon,
+        emissiveIntensity: 2
+    });
+    const matContorno = new THREE.LineBasicMaterial({ color: corNeon, transparent: true, opacity: 0.8 });
+
+    // 3. Posicionar as instâncias (apenas no contorno)
+    const matrix = new THREE.Matrix4();
+    let index = 0;
     for (let y = 0; y < niveis; y++) {
-        // Calcula o tamanho da grelha para este nível
-        let larguraGrelha = niveis - y; 
-        
-        for (let x = -larguraGrelha; x <= larguraGrelha; x++) {
-            for (let z = -larguraGrelha; z <= larguraGrelha; z++) {
-                // Criar o cubo
-                const geo = new THREE.BoxGeometry(tamanhoCubo, tamanhoCubo, tamanhoCubo);
-                const cubo = new THREE.Mesh(geo, matCubo);
-                
-                cubo.position.set(x * tamanhoCubo, y * tamanhoCubo, z * tamanhoCubo);
-                
-                // Adicionar contorno neon (opcional em todos para performance, mas vamos manter)
-                if ((x + z + y) % 2 === 0) { // Apenas em alguns para reduzir draw calls e manter detalhe
-                    const edges = new THREE.EdgesGeometry(geo);
-                    const contorno = new THREE.LineSegments(edges, matContorno);
-                    cubo.add(contorno);
+        let L = niveis - 1 - y;
+        const isTop = (y >= niveis - 2); // Os últimos 2 níveis formam o "topo"
+
+        for (let x = -L; x <= L; x++) {
+            for (let z = -L; z <= L; z++) {
+                // Se for o nível 0 (chão) ou se estiver na borda do quadrado
+                const naBorda = Math.abs(x) === L || Math.abs(z) === L;
+                const noChao = (y === 0);
+                const isEdge = Math.abs(x) === L && Math.abs(z) === L; // Aresta diagonal da pirâmide
+
+                if (naBorda || noChao) {
+                    const posX = x * tamanhoCubo;
+                    const posY = y * tamanhoCubo;
+                    const posZ = z * tamanhoCubo;
+
+                    if (isTop) {
+                        // Cubos do topo com material neon
+                        const topCube = new THREE.Mesh(geo, matTopNeon);
+                        topCube.position.set(posX, posY, posZ);
+                        topCube.castShadow = true;
+                        topCube.receiveShadow = true;
+                        grupo.add(topCube);
+
+                        // Contorno neon em todos os blocos do topo para realce
+                        const contorno = new THREE.LineSegments(geoEdges, matContorno);
+                        topCube.add(contorno);
+                    } else {
+                        // Cubos normais do corpo da pirâmide
+                        matrix.setPosition(posX, posY, posZ);
+                        meshInstanciada.setMatrixAt(index++, matrix);
+
+                        // Contorno neon nas arestas da pirâmide
+                        if (isEdge) {
+                            const contorno = new THREE.LineSegments(geoEdges, matContorno);
+                            contorno.position.set(posX, posY, posZ);
+                            grupo.add(contorno);
+                        }
+                    }
                 }
-                
-                cubo.castShadow = true;
-                cubo.receiveShadow = true;
-                grupo.add(cubo);
             }
         }
     }
+    
+    grupo.add(meshInstanciada);
 
     grupo.position.copy(posicao);
     return grupo;

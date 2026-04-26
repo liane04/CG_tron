@@ -2,7 +2,7 @@ import * as THREE from 'three';
 
 var _jungleState = null;
 
-export function adicionarObjetosJungle(grupo, ARENA) {
+export function adicionarObjetosJungle(grupo, ARENA, loaderOBJ, loaderMTL) {
     _jungleState = null;
     
     // --- Paredes de Vegetação ---
@@ -22,6 +22,52 @@ export function adicionarObjetosJungle(grupo, ARENA) {
 
     // --- Luzes Extra ---
     construirLuzesJungle(grupo);
+
+    // --- Oddish Gigante (Fora da Arena) ---
+    adicionarOddishJungle(grupo, ARENA, loaderOBJ, loaderMTL);
+}
+
+function adicionarOddishJungle(grupo, ARENA, loaderOBJ, loaderMTL) {
+    if (!loaderOBJ || !loaderMTL) return;
+
+    const mtlPath = './js/objetos/odish/materials.mtl';
+    const objPath = './js/objetos/odish/model.obj';
+
+    loaderMTL.load(mtlPath, function (materials) {
+        materials.preload();
+        loaderOBJ.setMaterials(materials);
+        loaderOBJ.load(objPath, function (object) {
+            // "mesmo gigante fora da arena"
+            object.scale.set(80, 80, 80);
+            
+            // Aproximar da arena e manter a altura
+            object.position.set(0, 50, -(ARENA / 2 + 40));
+            
+            // Olhar para o centro da arena e depois rodar 180 graus (ou apenas ajustar a rotação)
+            object.lookAt(0, 0, 0);
+            object.rotation.y += Math.PI; // Rotação de 180 graus na horizontal
+
+            // Luzes para o gigante
+            const luzOddish = new THREE.PointLight(0x88ff44, 200, 150);
+            luzOddish.position.set(0, 30, 20);
+            object.add(luzOddish);
+
+            // Brilho ambiente extra
+            const luzTopo = new THREE.PointLight(0x44ff88, 100, 100);
+            luzTopo.position.set(0, 60, 0);
+            object.add(luzTopo);
+
+            // Ajustar sombras
+            object.traverse(function (child) {
+                if (child.isMesh) {
+                    child.castShadow = true;
+                    child.receiveShadow = true;
+                }
+            });
+
+            grupo.add(object);
+        });
+    });
 }
 
 export function atualizarJungle(delta) {

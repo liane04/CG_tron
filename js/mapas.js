@@ -63,7 +63,8 @@ export const mapas = [
             diffuse: './textures/jungle/rocky_terrain_02_diff_2k.jpg',
             normal:  './textures/jungle/rocky_terrain_02_nor_gl_2k.jpg',
             rough:   './textures/jungle/rocky_terrain_02_rough_2k.jpg',
-        }
+        },
+        corNeonMota: 0x22cc44
     },
     {
         id: 'gelo',

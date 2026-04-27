@@ -4,6 +4,7 @@ import { aoIniciarJogo, mostrarMenu } from './menu.js';
 import { criarArena, atualizarDeserto, atualizarJungle } from './arena.js';
 import { criarMota } from './mota.js';
 import { inicializarInput, atualizarMotas } from './input.js';
+import { criarLuzes, toggleLuz } from './luzes.js';
 
 document.addEventListener('DOMContentLoaded', Start);
 
@@ -56,18 +57,11 @@ controlos.enableDamping = true;
 controlos.dampingFactor = 0.08;
 controlos.target.set(0, 0, 0);
 
-// --- Iluminação base (T4 irá expandir com toggles) ---
-var luzAmbiente = new THREE.AmbientLight(0x222244, 1.2);
-cena.add(luzAmbiente);
-
-var luzDirecional = new THREE.DirectionalLight(0xffffff, 0.4);
-luzDirecional.position.set(20, 40, 15);
-cena.add(luzDirecional);
-
 // --- Aplicar tema do mapa selecionado ---
 var grupoArena = null;
 var motaJogador1 = null;
 var motaJogador2 = null;
+var luzes = null;
 
 aoIniciarJogo(function (mapa) {
     // Remover arena anterior se existir
@@ -81,43 +75,13 @@ aoIniciarJogo(function (mapa) {
     var fogNear = mapa.fogNear !== undefined ? mapa.fogNear : 40;
     var fogFar  = mapa.fogFar  !== undefined ? mapa.fogFar  : 120;
     cena.fog = mapa.temFog === false ? null : new THREE.Fog(corFog, fogNear, fogFar);
-    luzAmbiente.color.set(mapa.luzAmbiente);
-    luzAmbiente.intensity = 1.2;   // valor por omissão; a jungle regula para baixo
 
-    if (mapa.id === 'deserto') {
-        luzDirecional.color.set(0xFFB347);
-        luzDirecional.intensity = 1.5;
-        luzDirecional.position.set(60, 20, 40);
-        luzDirecional.castShadow = true;
-        luzDirecional.shadow.mapSize.set(1024, 1024);
-        luzDirecional.shadow.camera.left   = -40;
-        luzDirecional.shadow.camera.right  =  40;
-        luzDirecional.shadow.camera.top    =  40;
-        luzDirecional.shadow.camera.bottom = -40;
-        luzDirecional.shadow.camera.near   = 1;
-        luzDirecional.shadow.camera.far    = 150;
-        luzDirecional.shadow.camera.updateProjectionMatrix();
-    } else if (mapa.id === 'jungle') {
-        // Sol filtrado pelas copas — luz fria esverdeada, vinda de um ângulo lateral.
-        luzAmbiente.intensity = 0.8;
-        luzDirecional.color.set(0xa8d870);
-        luzDirecional.intensity = 0.6;
-        luzDirecional.position.set(-20, 30, 15);
-        luzDirecional.castShadow = true;
-        luzDirecional.shadow.mapSize.set(1024, 1024);
-        luzDirecional.shadow.camera.left   = -25;
-        luzDirecional.shadow.camera.right  =  25;
-        luzDirecional.shadow.camera.top    =  25;
-        luzDirecional.shadow.camera.bottom = -25;
-        luzDirecional.shadow.camera.near   = 1;
-        luzDirecional.shadow.camera.far    = 120;
-        luzDirecional.shadow.camera.updateProjectionMatrix();
-    } else {
-        luzDirecional.color.set(0xffffff);
-        luzDirecional.intensity = 0.4;
-        luzDirecional.position.set(20, 40, 15);
-        luzDirecional.castShadow = false;
+    // Remover luzes anteriores se existirem
+    if (luzes) {
+        Object.values(luzes).forEach(function(l) { cena.remove(l); });
     }
+    luzes = criarLuzes(cena, mapa);
+    atualizarHUDLuzes();
 
     grupoArena = criarArena(cena, ARENA, mapa);
 
@@ -194,7 +158,38 @@ window.addEventListener('keydown', function (e) {
     if (e.key === 'Escape') {
         mostrarMenu();
     }
+    if (e.key === '1') { if (luzes) toggleLuz(luzes, 'ambiente');    atualizarHUDLuzes(); }
+    if (e.key === '2') { if (luzes) toggleLuz(luzes, 'direcional');  atualizarHUDLuzes(); }
+    if (e.key === '3') { if (luzes) toggleLuz(luzes, 'pontoArena');  atualizarHUDLuzes(); }
+    if (e.key === '4') { if (luzes) toggleLuz(luzes, 'pontoMota1'); atualizarHUDLuzes(); }
+    if (e.key === '5') { if (luzes) toggleLuz(luzes, 'pontoMota2'); atualizarHUDLuzes(); }
 });
+
+function atualizarHUDLuzes() {
+    if (!luzes) return;
+    var hud = document.getElementById('hud-luzes');
+    if (!hud) return;
+    hud.style.display = 'flex';
+
+    var entradas = [
+        { id: 'hud-l1', chave: 'ambiente',    label: '[1] Ambiente' },
+        { id: 'hud-l2', chave: 'direcional',  label: '[2] Direcional' },
+        { id: 'hud-l3', chave: 'pontoArena',  label: '[3] Arena' },
+        { id: 'hud-l4', chave: 'pontoMota1',  label: '[4] Mota1' },
+        { id: 'hud-l5', chave: 'pontoMota2',  label: '[5] Mota2' },
+    ];
+    entradas.forEach(function(e) {
+        var span = document.getElementById(e.id);
+        if (!span) return;
+        var on = luzes[e.chave].visible;
+        span.textContent = e.label + ': ' + (on ? 'ON' : 'OFF');
+        span.style.color = on ? '#00ffcc' : '#666688';
+        span.style.padding = '2px 6px';
+        span.style.background = 'rgba(0,0,0,0.55)';
+        span.style.borderRadius = '3px';
+        span.style.border = on ? '1px solid #00ffcc44' : '1px solid #33335544';
+    });
+}
 
 // --- Start / Loop ---
 function Start() {
@@ -213,6 +208,15 @@ function loop() {
     atualizarDeserto(delta);
     atualizarJungle(delta);
     atualizarMotas(delta);
+
+    if (luzes && motaJogador1) {
+        luzes.pontoMota1.position.copy(motaJogador1.position);
+        luzes.pontoMota1.position.y += 1.5;
+    }
+    if (luzes && motaJogador2) {
+        luzes.pontoMota2.position.copy(motaJogador2.position);
+        luzes.pontoMota2.position.y += 1.5;
+    }
 
     // A câmara segue a mota do jogador ativo (WASD → motaJogador2, rosa/vermelha).
     var motaAlvo = motaJogador2;

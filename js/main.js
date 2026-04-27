@@ -1,10 +1,20 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
+import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
 import { aoIniciarJogo, mostrarMenu } from './menu.js';
-import { criarArena, atualizarDeserto, atualizarJungle } from './arena.js';
+import { criarArena } from './arena.js';
 import { criarMota } from './mota.js';
+import { criarSkate, atualizarSkate } from './skate.js';
 import { inicializarInput, atualizarMotas } from './input.js';
 import { criarLuzes, toggleLuz } from './luzes.js';
+
+// Importar objetos decorativos e animações das arenas
+import { adicionarObjetosSpace, atualizarSpace }   from './objetos/arenaSpace.js';
+import { adicionarObjetosDeserto, atualizarDeserto } from './objetos/arenaDeserto.js';
+import { adicionarObjetosGelo, atualizarGelo }       from './objetos/arenaGelo.js';
+import { adicionarObjetosJungle, atualizarJungle }   from './objetos/arenaJungle.js';
 
 document.addEventListener('DOMContentLoaded', Start);
 
@@ -18,32 +28,36 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 document.body.appendChild(renderer.domElement);
 
 var reloginho = new THREE.Clock();
+var loaderGlobal = new THREE.TextureLoader();
+var loaderGLTF = new GLTFLoader();
+var loaderOBJ = new OBJLoader();
+var loaderMTL = new MTLLoader();
 
 // --- Tamanho da arena ---
-var ARENA = 40;
+var ARENA = 70;
 
 // --- Câmara em Perspetiva ---
 var camaraPerspetiva = new THREE.PerspectiveCamera(
     60,
     window.innerWidth / window.innerHeight,
     0.1,
-    500
+    800
 );
-camaraPerspetiva.position.set(0, 30, 45);
+camaraPerspetiva.position.set(0, 45, 70);
 camaraPerspetiva.lookAt(0, 0, 0);
 
 // --- Câmara Ortográfica (vista topo) ---
 var aspecto = window.innerWidth / window.innerHeight;
-var tamanhoOrto = ARENA * 0.6;
+var tamanhoOrto = ARENA * 0.62;
 var camaraOrtografica = new THREE.OrthographicCamera(
     -tamanhoOrto * aspecto,
     tamanhoOrto * aspecto,
     tamanhoOrto,
     -tamanhoOrto,
     0.1,
-    500
+    800
 );
-camaraOrtografica.position.set(0, 80, 0);
+camaraOrtografica.position.set(0, 120, 0);
 camaraOrtografica.lookAt(0, 0, 0);
 
 var camaraAtiva = camaraPerspetiva;
@@ -57,10 +71,10 @@ controlos.enableDamping = true;
 controlos.dampingFactor = 0.08;
 controlos.target.set(0, 0, 0);
 
-// --- Aplicar tema do mapa selecionado ---
+// --- Estado global ---
 var grupoArena = null;
 var motaJogador1 = null;
-var motaJogador2 = null;
+var skateJogador2 = null;
 var luzes = null;
 
 aoIniciarJogo(function (mapa) {
@@ -70,58 +84,71 @@ aoIniciarJogo(function (mapa) {
         grupoArena = null;
     }
 
+    // Remover veículos anteriores se existirem
+    if (motaJogador1)  { cena.remove(motaJogador1);  motaJogador1  = null; }
+    if (skateJogador2) { cena.remove(skateJogador2); skateJogador2 = null; }
+
+    // Remover luzes anteriores se existirem
+    if (luzes) {
+        Object.values(luzes).forEach(function(l) { cena.remove(l); });
+        luzes = null;
+    }
+
     cena.background = new THREE.Color(mapa.corFundo);
     var corFog  = mapa.corFog  !== undefined ? mapa.corFog  : mapa.corFundo;
     var fogNear = mapa.fogNear !== undefined ? mapa.fogNear : 40;
     var fogFar  = mapa.fogFar  !== undefined ? mapa.fogFar  : 120;
     cena.fog = mapa.temFog === false ? null : new THREE.Fog(corFog, fogNear, fogFar);
 
-    // Remover luzes anteriores se existirem
-    if (luzes) {
-        Object.values(luzes).forEach(function(l) { cena.remove(l); });
-    }
+    // Criar luzes para o mapa atual (configurações por mapa em luzes.js)
     luzes = criarLuzes(cena, mapa);
     atualizarHUDLuzes();
 
     grupoArena = criarArena(cena, ARENA, mapa);
 
-    // --- Motas ---
-    // Remover motas anteriores se existirem
-    if (motaJogador1) { cena.remove(motaJogador1); motaJogador1 = null; }
-    if (motaJogador2) { cena.remove(motaJogador2); motaJogador2 = null; }
+    // --- Adicionar objetos decorativos específicos por mapa ---
+    if (mapa.id === 'space') {
+        adicionarObjetosSpace(grupoArena, ARENA, loaderGlobal);
+    } else if (mapa.id === 'deserto') {
+        adicionarObjetosDeserto(grupoArena, ARENA, loaderGlobal, mapa, loaderGLTF);
+    } else if (mapa.id === 'jungle') {
+        adicionarObjetosJungle(grupoArena, ARENA, loaderOBJ, loaderMTL);
+    } else if (mapa.id === 'gelo') {
+        adicionarObjetosGelo(grupoArena, ARENA, loaderGlobal);
+    }
 
-    motaJogador1 = criarMota(mapa.id, 0x00ffff);   // jogador 1 — ciano
+    // --- Veículos ---
+    // Jogador 1 → mota (cyan), controlo por setas + Shift
+    motaJogador1 = criarMota(0x00ffff);
     motaJogador1.position.set(-5, 0, 0);
     motaJogador1.rotation.y = 0;
     cena.add(motaJogador1);
 
-    motaJogador2 = criarMota(mapa.id, 0xff0066);   // jogador 2 — rosa
-    motaJogador2.position.set(5, 0, 0);
-    motaJogador2.rotation.y = Math.PI;             // virado para o lado oposto
-    cena.add(motaJogador2);
+    // Jogador 2 → skate (rosa), controlo por WASD + Espaço
+    skateJogador2 = criarSkate(0xff0066);
+    skateJogador2.position.set(5, 0, 0);
+    skateJogador2.rotation.y = Math.PI;
+    cena.add(skateJogador2);
 
-    // --- Input: ligar teclado às motas recém-criadas ---
-    inicializarInput(motaJogador1, motaJogador2, ARENA);
+    // --- Input: ligar teclado aos veículos ---
+    inicializarInput(motaJogador1, skateJogador2, ARENA);
 });
 
 // --- Redimensionamento ---
 window.addEventListener('resize', function () {
     var asp = window.innerWidth / window.innerHeight;
-
     camaraPerspetiva.aspect = asp;
     camaraPerspetiva.updateProjectionMatrix();
-
     camaraOrtografica.left = -tamanhoOrto * asp;
     camaraOrtografica.right = tamanhoOrto * asp;
     camaraOrtografica.top = tamanhoOrto;
     camaraOrtografica.bottom = -tamanhoOrto;
     camaraOrtografica.updateProjectionMatrix();
-
     renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
-// --- Input de teclado (câmaras / menu) ---
-var modoCamaraAnterior = 'livre';  // sentinela para snap inicial ao entrar em 3ª pessoa
+// --- Modos de câmara ---
+var modoCamaraAnterior = 'livre';
 
 function aplicarModoCamara() {
     if (modoCamara === 'livre') {
@@ -161,8 +188,8 @@ window.addEventListener('keydown', function (e) {
     if (e.key === '1') { if (luzes) toggleLuz(luzes, 'ambiente');    atualizarHUDLuzes(); }
     if (e.key === '2') { if (luzes) toggleLuz(luzes, 'direcional');  atualizarHUDLuzes(); }
     if (e.key === '3') { if (luzes) toggleLuz(luzes, 'pontoArena');  atualizarHUDLuzes(); }
-    if (e.key === '4') { if (luzes) toggleLuz(luzes, 'pontoMota1'); atualizarHUDLuzes(); }
-    if (e.key === '5') { if (luzes) toggleLuz(luzes, 'pontoMota2'); atualizarHUDLuzes(); }
+    if (e.key === '4') { if (luzes) toggleLuz(luzes, 'pontoMota1');  atualizarHUDLuzes(); }
+    if (e.key === '5') { if (luzes) toggleLuz(luzes, 'pontoMota2');  atualizarHUDLuzes(); }
 });
 
 function atualizarHUDLuzes() {
@@ -175,8 +202,8 @@ function atualizarHUDLuzes() {
         { id: 'hud-l1', chave: 'ambiente',    label: '[1] Ambiente' },
         { id: 'hud-l2', chave: 'direcional',  label: '[2] Direcional' },
         { id: 'hud-l3', chave: 'pontoArena',  label: '[3] Arena' },
-        { id: 'hud-l4', chave: 'pontoMota1',  label: '[4] Mota1' },
-        { id: 'hud-l5', chave: 'pontoMota2',  label: '[5] Mota2' },
+        { id: 'hud-l4', chave: 'pontoMota1',  label: '[4] Mota' },
+        { id: 'hud-l5', chave: 'pontoMota2',  label: '[5] Skate' },
     ];
     entradas.forEach(function(e) {
         var span = document.getElementById(e.id);
@@ -196,39 +223,47 @@ function Start() {
     requestAnimationFrame(loop);
 }
 
-// Offset em espaço local da mota: a frente visual da mota aponta para -Z
-// (roda dianteira em ZF = -1.18 em mota.js), logo a traseira está em +Z → câmara atrás.
+// Offset em espaço local: a frente visual aponta para -Z, logo a câmara fica em +Z (atrás)
 var offsetTerceiraPessoa = new THREE.Vector3(0, 3.5, 8);
-var alvoTerceiraPessoa  = new THREE.Vector3(0, 1, -2);  // mira ligeiramente à frente da mota
+var alvoTerceiraPessoa  = new THREE.Vector3(0, 1, -2);
 var posCamTemp = new THREE.Vector3();
 var alvoCamTemp = new THREE.Vector3();
 
 function loop() {
     var delta = reloginho.getDelta();
+
+    // Atualizar animações de todas as arenas
+    atualizarSpace(delta);
     atualizarDeserto(delta);
     atualizarJungle(delta);
+    atualizarGelo(delta);
+
+    // Animação interna do skate (hover bob, propulsores)
+    atualizarSkate(delta);
+
+    // Movimento e rotação dos veículos via input
     atualizarMotas(delta);
 
+    // Acompanhar o ponto de luz de cada veículo
     if (luzes && motaJogador1) {
         luzes.pontoMota1.position.copy(motaJogador1.position);
         luzes.pontoMota1.position.y += 1.5;
     }
-    if (luzes && motaJogador2) {
-        luzes.pontoMota2.position.copy(motaJogador2.position);
+    if (luzes && skateJogador2) {
+        luzes.pontoMota2.position.copy(skateJogador2.position);
         luzes.pontoMota2.position.y += 1.5;
     }
 
-    // A câmara segue a mota do jogador ativo (WASD → motaJogador2, rosa/vermelha).
-    var motaAlvo = motaJogador2;
-    if (modoCamara === 'terceiraPessoa' && motaAlvo) {
-        posCamTemp.copy(offsetTerceiraPessoa).applyQuaternion(motaAlvo.quaternion);
-        posCamTemp.add(motaAlvo.position);
+    // A câmara em terceira pessoa segue o jogador 2 (skate, WASD)
+    var alvo = skateJogador2;
+    if (modoCamara === 'terceiraPessoa' && alvo) {
+        posCamTemp.copy(offsetTerceiraPessoa).applyQuaternion(alvo.quaternion);
+        posCamTemp.add(alvo.position);
 
-        alvoCamTemp.copy(alvoTerceiraPessoa).applyQuaternion(motaAlvo.quaternion);
-        alvoCamTemp.add(motaAlvo.position);
+        alvoCamTemp.copy(alvoTerceiraPessoa).applyQuaternion(alvo.quaternion);
+        alvoCamTemp.add(alvo.position);
 
         if (modoCamaraAnterior !== 'terceiraPessoa') {
-            // Primeira frame neste modo — snap sem lerp para evitar arrastar da posição da câmara livre
             camaraPerspetiva.position.copy(posCamTemp);
         } else {
             camaraPerspetiva.position.lerp(posCamTemp, Math.min(1, 8 * delta));
@@ -236,11 +271,12 @@ function loop() {
         camaraPerspetiva.lookAt(alvoCamTemp);
     }
 
-    // OrbitControls.update() reescreve a posição da câmara mesmo com enabled=false;
+    // OrbitControls.update() reescreve a posição mesmo com enabled=false;
     // só o chamamos em modo livre para não anular a câmara 3ª pessoa.
     if (modoCamara === 'livre') controlos.update();
 
     modoCamaraAnterior = modoCamara;
+
     renderer.render(cena, camaraAtiva);
     requestAnimationFrame(loop);
 }

@@ -54,6 +54,23 @@ export function criarLuzes(cena, mapa) {
 
         luzes.ambiente.intensity = 0.8;
         luzes.pontoArena.color.set(0x00ff44);
+    } else if (mapa.id === 'gelo') {
+        luzes.ambiente.color.set(0x444444);
+        luzes.ambiente.intensity = 0.5;
+        luzes.direcional.color.set(0xffffff);
+        luzes.direcional.intensity = 3.0;
+        luzes.direcional.position.set(-40, 60, 10);
+        luzes.direcional.castShadow = true;
+        luzes.direcional.shadow.mapSize.set(2048, 2048);
+        luzes.direcional.shadow.camera.left   = -45;
+        luzes.direcional.shadow.camera.right  =  45;
+        luzes.direcional.shadow.camera.top    =  45;
+        luzes.direcional.shadow.camera.bottom = -45;
+        luzes.direcional.shadow.camera.near   = 1;
+        luzes.direcional.shadow.camera.far    = 150;
+        luzes.direcional.shadow.camera.updateProjectionMatrix();
+
+        luzes.pontoArena.color.set(0x66ccff);
     } else {
         luzes.direcional.color.set(0xffffff);
         luzes.direcional.intensity = 0.4;

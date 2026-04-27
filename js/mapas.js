@@ -29,7 +29,7 @@ export const mapas = [
         emissividadeParede: 0.0,
         opacidadeParede: 1.0,
         mostrarGrid: false,
-        temFog: true,
+        temFog: false,
         corFog: 0xD2956C,
         fogNear: 30,
         fogFar: 90,
@@ -38,7 +38,8 @@ export const mapas = [
             diffuse: './textures/areia/sandy_gravel_diff_2k.jpg',
             normal:  './textures/areia/sandy_gravel_nor_gl_2k.jpg',
             rough:   './textures/areia/sandy_gravel_rough_2k.jpg',
-        }
+        },
+        corNeonMota: 0xffff00
     },
     {
         id: 'jungle',
@@ -53,7 +54,7 @@ export const mapas = [
         emissividadeParede: 0.0,
         opacidadeParede: 1.0,
         mostrarGrid: false,
-        temFog: true,
+        temFog: false,
         corFog: 0x0a1f08,
         fogNear: 20,
         fogFar: 70,
@@ -62,6 +63,31 @@ export const mapas = [
             diffuse: './textures/jungle/rocky_terrain_02_diff_2k.jpg',
             normal:  './textures/jungle/rocky_terrain_02_nor_gl_2k.jpg',
             rough:   './textures/jungle/rocky_terrain_02_rough_2k.jpg',
+        },
+        corNeonMota: 0x22cc44
+    },
+    {
+        id: 'gelo',
+        nome: 'ICE',
+        descricao: 'Arena glaciar no ártico noturno',
+        corCSS: '#66ddff',
+        corFundo: 0x040c18,       // azul noite ártico profundo
+        corGrid1: 0x66ddff,
+        corGrid2: 0x113355,
+        corChao: 0xaaccee,
+        corParede: 0x99ccff,
+        emissividadeParede: 0.0,
+        opacidadeParede: 1.0,
+        mostrarGrid: false,
+        temFog: false,
+        corFog: 0x040c18,
+        fogNear: 30,
+        fogFar: 80,
+        luzAmbiente: 0x040c18,
+        texturas: {
+            diffuse: './textures/gelo/snow_02_diff_2k.jpg',
+            normal:  './textures/gelo/snow_02_nor_gl_2k.jpg',
+            rough:   './textures/gelo/snow_02_rough_2k.jpg',
         }
     }
 ];

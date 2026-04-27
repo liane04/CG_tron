@@ -3,9 +3,11 @@ import * as THREE from 'three';
 // --- Estado das teclas (preenchido pelos listeners) ---
 var teclas = {};
 
-// --- Referências às motas e respetivos estados físicos ---
+// --- Referências aos veículos e respetivos estados físicos ---
+// Jogador 1 → mota (controlo: setas + Shift)
+// Jogador 2 → skate (controlo: WASD + Espaço)
 var motaJ1 = null;
-var motaJ2 = null;
+var skateJ2 = null;
 var estadoJ1 = null;
 var estadoJ2 = null;
 
@@ -37,26 +39,25 @@ function aoLargar(e) {
     teclas[e.code] = false;
 }
 
-function criarEstado(mota) {
-    // A frente visual da mota aponta para -Z (ver mota.js, roda dianteira em ZF=-1.18),
-    // pelo que a direção de movimento usa sinal negativo para coincidir com o visual.
+function criarEstado(veiculo) {
+    // A frente visual aponta para -Z, pelo que a direção usa sinal negativo
     return {
         velocidade: VELOCIDADE_BASE,
-        direcao: new THREE.Vector3(-Math.sin(mota.rotation.y), 0, -Math.cos(mota.rotation.y)),
+        direcao: new THREE.Vector3(-Math.sin(veiculo.rotation.y), 0, -Math.cos(veiculo.rotation.y)),
         saltando: false,
         tSalto: 0,
-        alturaBase: mota.position.y,
+        alturaBase: veiculo.position.y,
         alturaMaxSalto: ALTURA_MAX_SALTO,
         duracaoSalto: DURACAO_SALTO
     };
 }
 
-export function inicializarInput(mota1, mota2, arena) {
-    motaJ1 = mota1;
-    motaJ2 = mota2;
+export function inicializarInput(mota, skate, arena) {
+    motaJ1 = mota;
+    skateJ2 = skate;
     if (arena !== undefined) LIMITE_ARENA = arena / 2;
-    estadoJ1 = criarEstado(mota1);
-    estadoJ2 = criarEstado(mota2);
+    estadoJ1 = criarEstado(mota);
+    estadoJ2 = criarEstado(skate);
 
     // Limpar estado de teclas — evita heranças de sessões anteriores
     teclas = {};
@@ -68,39 +69,39 @@ export function inicializarInput(mota1, mota2, arena) {
     }
 }
 
-function atualizarJogador(mota, estado, teclaEsq, teclaDir, delta) {
-    if (!mota || !estado) return;
+function atualizarJogador(veiculo, estado, teclaEsq, teclaDir, delta) {
+    if (!veiculo || !estado) return;
 
     // Rotação contínua enquanto a tecla estiver pressionada
-    if (teclas[teclaEsq])  mota.rotation.y += VELOCIDADE_ROTACAO * delta;
-    if (teclas[teclaDir])  mota.rotation.y -= VELOCIDADE_ROTACAO * delta;
+    if (teclas[teclaEsq])  veiculo.rotation.y += VELOCIDADE_ROTACAO * delta;
+    if (teclas[teclaDir])  veiculo.rotation.y -= VELOCIDADE_ROTACAO * delta;
 
     // Atualizar vetor direção (alinhado com a frente visual, -Z em espaço local)
-    estado.direcao.set(-Math.sin(mota.rotation.y), 0, -Math.cos(mota.rotation.y));
+    estado.direcao.set(-Math.sin(veiculo.rotation.y), 0, -Math.cos(veiculo.rotation.y));
 
     // Movimento contínuo para a frente
-    mota.position.addScaledVector(estado.direcao, estado.velocidade * delta);
+    veiculo.position.addScaledVector(estado.direcao, estado.velocidade * delta);
 
     // Limitar à arena — clamp nas paredes (T5 tratará colisão real)
-    var margem = 0.5; // metade da largura da mota
-    mota.position.x = Math.max(-LIMITE_ARENA + margem, Math.min(LIMITE_ARENA - margem, mota.position.x));
-    mota.position.z = Math.max(-LIMITE_ARENA + margem, Math.min(LIMITE_ARENA - margem, mota.position.z));
+    var margem = 0.5;
+    veiculo.position.x = Math.max(-LIMITE_ARENA + margem, Math.min(LIMITE_ARENA - margem, veiculo.position.x));
+    veiculo.position.z = Math.max(-LIMITE_ARENA + margem, Math.min(LIMITE_ARENA - margem, veiculo.position.z));
 
     // Salto parabólico (sin) — mantém altura base ao aterrar
     if (estado.saltando) {
         estado.tSalto += delta;
-        mota.position.y = estado.alturaBase +
+        veiculo.position.y = estado.alturaBase +
             estado.alturaMaxSalto * Math.sin(Math.PI * estado.tSalto / estado.duracaoSalto);
         if (estado.tSalto >= estado.duracaoSalto) {
             estado.saltando = false;
             estado.tSalto = 0;
-            mota.position.y = estado.alturaBase;
+            veiculo.position.y = estado.alturaBase;
         }
     }
 }
 
 export function atualizarMotas(delta) {
-    if (!motaJ1 || !motaJ2) return;
-    atualizarJogador(motaJ1, estadoJ1, 'ArrowLeft', 'ArrowRight', delta);
-    atualizarJogador(motaJ2, estadoJ2, 'KeyA',      'KeyD',       delta);
+    if (!motaJ1 || !skateJ2) return;
+    atualizarJogador(motaJ1,  estadoJ1, 'ArrowLeft', 'ArrowRight', delta);
+    atualizarJogador(skateJ2, estadoJ2, 'KeyA',      'KeyD',       delta);
 }

@@ -7,7 +7,7 @@ import { aoIniciarJogo, mostrarMenu } from './menu.js';
 import { criarArena } from './arena.js';
 import { criarMota } from './mota.js';
 import { criarSkate, atualizarSkate } from './skate.js';
-import { inicializarInput, atualizarMotas } from './input.js';
+import { inicializarInput, atualizarMotas, definirObstaculos } from './input.js';
 import { criarLuzes, toggleLuz } from './luzes.js';
 
 // Importar objetos decorativos e animações das arenas
@@ -132,6 +132,9 @@ aoIniciarJogo(function (mapa) {
 
     // --- Input: ligar teclado aos veículos ---
     inicializarInput(motaJogador1, skateJogador2, ARENA);
+
+    // --- Colisão: recolher AABBs dos obstáculos marcados (userData.isObstacle) ---
+    definirObstaculos(grupoArena);
 });
 
 // --- Redimensionamento ---

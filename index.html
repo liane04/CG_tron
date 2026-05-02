@@ -1,16 +1,18 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Tron Light Cycles</title>
+    <title>NEON DRIVE</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
+        html, body {
+            width: 100%; height: 100%;
             overflow: hidden;
             background: #000;
             font-family: 'Courier New', monospace;
         }
+        canvas { display: block; }
 
-        /* HUD durante o jogo */
+        /* HUD durante o jogo (desligado em modo menu) */
         #info {
             position: absolute;
             top: 10px;
@@ -23,185 +25,35 @@
             display: none;
         }
 
-        /* Ecrãs sobrepostos */
-        .ecra {
-            position: absolute;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
+        #hud-luzes {
+            position: fixed;
+            bottom: 12px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: none;
+            gap: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            pointer-events: none;
             z-index: 100;
-            transition: opacity 0.4s ease;
         }
 
-        .ecra.oculto {
-            opacity: 0;
-            pointer-events: none;
-        }
-
-        /* Fundo com grelha animada */
-        .ecra::before {
-            content: '';
+        /* Loader simples até o módulo principal arrancar */
+        #boot {
             position: absolute;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
-            background-image:
-                linear-gradient(rgba(0, 255, 255, 0.07) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(0, 255, 255, 0.07) 1px, transparent 1px);
-            background-size: 40px 40px;
-            animation: gridMove 6s linear infinite;
-            pointer-events: none;
-        }
-
-        @keyframes gridMove {
-            0%   { background-position: 0 0; }
-            100% { background-position: 40px 40px; }
-        }
-
-        /* --- Menu Principal --- */
-        #menu {
-            background: radial-gradient(ellipse at center, #001122 0%, #000000 70%);
-        }
-
-        #titulo {
-            font-size: 110px;
-            font-weight: bold;
-            color: #00ffff;
-            letter-spacing: 18px;
-            text-shadow: 0 0 10px #00ffff, 0 0 25px #00ffff, 0 0 45px #0088ff;
-            margin-bottom: 10px;
-            z-index: 1;
-            animation: pulsar 2.5s ease-in-out infinite;
-        }
-
-        @keyframes pulsar {
-            0%, 100% { text-shadow: 0 0 10px #00ffff, 0 0 25px #00ffff, 0 0 45px #0088ff; }
-            50%      { text-shadow: 0 0 15px #00ffff, 0 0 35px #00ffff, 0 0 70px #00aaff; }
-        }
-
-        #subtitulo {
-            font-size: 26px;
-            color: #ff3366;
-            letter-spacing: 10px;
-            text-shadow: 0 0 8px #ff3366, 0 0 20px #ff0055;
-            margin-bottom: 60px;
-            z-index: 1;
-        }
-
-        .botao {
-            background: transparent;
-            border: 2px solid #00ffff;
-            color: #00ffff;
-            font-family: inherit;
-            font-size: 22px;
-            letter-spacing: 6px;
-            padding: 14px 50px;
-            cursor: pointer;
-            text-shadow: 0 0 6px #00ffff;
-            box-shadow: 0 0 15px rgba(0,255,255,0.4), inset 0 0 15px rgba(0,255,255,0.15);
-            transition: all 0.25s ease;
-            z-index: 1;
-            margin-bottom: 50px;
-        }
-
-        .botao:hover {
-            background: rgba(0, 255, 255, 0.15);
-            box-shadow: 0 0 30px #00ffff, inset 0 0 20px rgba(0,255,255,0.25);
-            transform: scale(1.05);
-        }
-
-        #controlos {
-            color: #66ddff;
-            font-size: 14px;
-            text-align: center;
-            line-height: 1.8;
-            text-shadow: 0 0 4px #00aaff;
-            z-index: 1;
-        }
-
-        #controlos h3 {
-            color: #00ffff;
-            margin-bottom: 10px;
-            letter-spacing: 4px;
-            font-size: 16px;
-        }
-
-        .tecla {
-            display: inline-block;
-            border: 1px solid #00ffff;
-            padding: 2px 8px;
-            margin: 0 2px;
-            box-shadow: 0 0 5px rgba(0,255,255,0.5);
-        }
-
-        /* --- Seleção de Mapa --- */
-        #selecaoMapa {
-            background: radial-gradient(ellipse at center, #000d1a 0%, #000000 70%);
-        }
-
-        #tituloSelecao {
-            font-size: 36px;
-            color: #00ffff;
-            letter-spacing: 10px;
-            text-shadow: 0 0 10px #00ffff;
-            margin-bottom: 40px;
-            z-index: 1;
-        }
-
-        #grelhaMapas {
+            inset: 0;
             display: flex;
-            gap: 30px;
-            z-index: 1;
-            margin-bottom: 40px;
-        }
-
-        .cardMapa {
-            width: 200px;
-            padding: 30px 20px;
-            border: 2px solid;
-            background: rgba(0, 0, 0, 0.6);
-            cursor: pointer;
-            text-align: center;
-            transition: all 0.25s ease;
-            display: flex;
-            flex-direction: column;
             align-items: center;
-            gap: 14px;
-        }
-
-        .cardMapa:hover {
-            background: rgba(255, 255, 255, 0.07);
-            transform: translateY(-6px) scale(1.03);
-            box-shadow: 0 0 30px var(--cor);
-        }
-
-        .nomeCard {
-            font-size: 28px;
-            font-weight: bold;
+            justify-content: center;
+            color: #ff2bd6;
+            font-size: 20px;
             letter-spacing: 6px;
+            text-shadow: 0 0 8px #ff2bd6;
+            background: #05000d;
+            z-index: 200;
+            transition: opacity 0.6s ease;
         }
-
-        .descCard {
-            font-size: 13px;
-            color: #aaa;
-            letter-spacing: 1px;
-        }
-
-        .previewCard {
-            width: 50px;
-            height: 6px;
-            border-radius: 3px;
-            opacity: 0.85;
-        }
-
-        #btnVoltar {
-            z-index: 1;
-            font-size: 16px;
-            padding: 10px 36px;
-            letter-spacing: 4px;
-        }
+        #boot.oculto { opacity: 0; pointer-events: none; }
     </style>
     <script type="importmap">
         {
@@ -213,33 +65,19 @@
     </script>
 </head>
 <body>
-
-    <!-- Menu Principal -->
-    <div id="menu" class="ecra">
-        <div id="titulo">TRON</div>
-        <div id="subtitulo">LIGHT CYCLES</div>
-        <button class="botao" id="btnIniciar">INICIAR</button>
-        <div id="controlos">
-            <h3>CONTROLOS</h3>
-            <span class="tecla">W</span><span class="tecla">A</span><span class="tecla">S</span><span class="tecla">D</span> /
-            <span class="tecla">↑</span><span class="tecla">←</span><span class="tecla">↓</span><span class="tecla">→</span> &nbsp; Direção<br>
-            <span class="tecla">ESPAÇO</span> &nbsp; Saltar &nbsp;&nbsp;
-            <span class="tecla">C</span> &nbsp; Alternar Câmara<br>
-            <span class="tecla">R</span> &nbsp; Reiniciar &nbsp;&nbsp;
-            <span class="tecla">ESC</span> &nbsp; Menu
-        </div>
-    </div>
-
-    <!-- Seleção de Mapa -->
-    <div id="selecaoMapa" class="ecra oculto">
-        <div id="tituloSelecao">ESCOLHE O MAPA</div>
-        <div id="grelhaMapas"></div>
-        <button class="botao" id="btnVoltar">VOLTAR</button>
-    </div>
+    <div id="boot">LOADING…</div>
 
     <!-- HUD durante o jogo -->
     <div id="info">
         [C] Câmara &nbsp; [ESC] Menu
+    </div>
+
+    <div id="hud-luzes">
+        <span id="hud-l1"></span>
+        <span id="hud-l2"></span>
+        <span id="hud-l3"></span>
+        <span id="hud-l4"></span>
+        <span id="hud-l5"></span>
     </div>
 
     <script src="./js/main.js" type="module"></script>

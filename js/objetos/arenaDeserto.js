@@ -710,7 +710,7 @@ function construirArvoresDeserto(grupo, ARENA, loaderGLTF) {
             z = (Math.random() - 0.5) * 2 * zonaBorda;
         } while (Math.sqrt(x * x + z * z) < raioSeguro);
 
-        loaderGLTF.load('./js/objetos/arvoreDeserto/quiver_tree_01_4k.gltf', function (gltf) {
+        loaderGLTF.load('./models/arvoreDeserto/quiver_tree_01_4k.gltf', function (gltf) {
             const arvore = gltf.scene;
             
             // Ajustar escala se necessário (modelos externos podem vir gigantes ou minúsculos)

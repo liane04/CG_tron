@@ -11,6 +11,18 @@ import * as THREE from 'three';
 // Referências para animação
 const _skateAnimData = [];
 
+/**
+ * Purga entradas de animação cujo grupo hover já não está na cena.
+ * Chamada automaticamente ao criar um novo skate.
+ */
+function _purgarAnimDataOrfaos() {
+    for (let i = _skateAnimData.length - 1; i >= 0; i--) {
+        if (!_skateAnimData[i].hover.parent) {
+            _skateAnimData.splice(i, 1);
+        }
+    }
+}
+
 export function atualizarSkate(delta) {
     const t = performance.now() * 0.001;
     for (const d of _skateAnimData) {
@@ -28,6 +40,41 @@ export function atualizarSkate(delta) {
     }
 }
 
+/**
+ * Liberta todos os recursos GPU (geometrias, materiais e texturas)
+ * associados a um skate removido da cena.
+ *
+ * @param {THREE.Group} raiz  O grupo raiz devolvido por criarSkate()
+ */
+export function destruirSkate(raiz) {
+    if (!raiz) return;
+
+    raiz.traverse(child => {
+        if (child.isMesh) {
+            // Libertar geometria
+            if (child.geometry) child.geometry.dispose();
+
+            // Libertar material(ais)
+            const materiais = Array.isArray(child.material)
+                ? child.material
+                : [child.material];
+
+            for (const mat of materiais) {
+                // Libertar cada textura associada ao material
+                for (const prop of Object.keys(mat)) {
+                    if (mat[prop] && mat[prop].isTexture) {
+                        mat[prop].dispose();
+                    }
+                }
+                mat.dispose();
+            }
+        }
+    });
+
+    // Remover entrada de animação correspondente
+    _purgarAnimDataOrfaos();
+}
+
 export function criarSkate(corNeon = 0x00ffff) {
 
     const ESCALA = 0.38;
@@ -37,6 +84,9 @@ export function criarSkate(corNeon = 0x00ffff) {
     const hover = new THREE.Group();
     raiz.add(hover);
     raiz.scale.set(ESCALA * LARGURA_MULT, ESCALA, ESCALA);
+
+    // Limpar referências a skates já removidos da cena
+    _purgarAnimDataOrfaos();
 
     const animData = { hover, propCores: [], conduits: [] };
     _skateAnimData.push(animData);
@@ -439,5 +489,8 @@ export function criarSkate(corNeon = 0x00ffff) {
     });
 
     hover.position.y = 0;
+    // Rodar 180 graus para que os propulsores fiquem virados para trás (-Z)
+    hover.rotation.y = Math.PI;
+    
     return raiz;
 }

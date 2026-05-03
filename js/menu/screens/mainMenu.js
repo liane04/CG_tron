@@ -4,7 +4,7 @@
 import * as THREE from 'three';
 import { makeTextPlane } from '../textSprite.js';
 import { tween, Easing } from '../tween.js';
-import { sfxNavigate, sfxConfirm, sfxBack } from '../audioManager.js';
+import { sfxNavigate, sfxConfirm, sfxBack } from '../../audioManager.js';
 
 var OPTIONS = [
     { id: 'play',     label: 'PLAY',     color: 0x00eaff, hint: 'Iniciar corrida' },

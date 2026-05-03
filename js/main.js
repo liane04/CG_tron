@@ -9,7 +9,7 @@ import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
 
 import { criarArena } from './arena.js';
 import { criarMota } from './mota.js';
-import { criarSkate, atualizarSkate } from './skate.js';
+import { criarSkate, atualizarSkate, destruirSkate } from './skate.js';
 import { criarSpeeder, atualizarSpeeder } from './speeder.js';
 import { criarGlider, atualizarGlider } from './glider.js';
 import { inicializarInput, atualizarMotas, definirObstaculos } from './input.js';
@@ -22,6 +22,7 @@ import { adicionarObjetosGelo, atualizarGelo }       from './objetos/arenaGelo.j
 import { adicionarObjetosJungle, atualizarJungle }   from './objetos/arenaJungle.js';
 
 import { initMenu, showMenu } from './menu/menuApp.js';
+import { playMapMusic, playMenuMusic } from './audioManager.js';
 
 // ---------------------------------------------------------------------------
 // Renderer (shared between menu and game)
@@ -45,7 +46,11 @@ var menuSettings = null;
 // ---------------------------------------------------------------------------
 // Menu boot
 // ---------------------------------------------------------------------------
-document.addEventListener('DOMContentLoaded', start);
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', start);
+} else {
+    start();
+}
 
 function start() {
     menuApi = initMenu(renderer, {
@@ -58,6 +63,7 @@ function start() {
             var pickedMap = mapas.find(function (m) { return m.id === mapId; }) || mapas[0];
             ensureGameInitialised();
             gameApi.startWithMap(pickedMap, settings.garage || null);
+            playMapMusic(pickedMap.id);
             appMode = 'game';
             document.getElementById('info').style.display = 'block';
             document.getElementById('hud-luzes').style.display = 'flex';
@@ -86,6 +92,7 @@ function backToMenu() {
     document.getElementById('info').style.display = 'none';
     document.getElementById('hud-luzes').style.display = 'none';
     showMenu();
+    playMenuMusic();
 }
 
 // ---------------------------------------------------------------------------
@@ -156,7 +163,7 @@ function buildGame() {
     function startWithMap(mapa, garage) {
         if (grupoArena) { cena.remove(grupoArena); grupoArena = null; }
         if (motaJogador1)  { cena.remove(motaJogador1);  motaJogador1 = null; }
-        if (skateJogador2) { cena.remove(skateJogador2); skateJogador2 = null; }
+        if (skateJogador2) { destruirSkate(skateJogador2); cena.remove(skateJogador2); skateJogador2 = null; }
         if (luzes) { Object.values(luzes).forEach(function (l) { cena.remove(l); }); luzes = null; }
 
         cena.background = new THREE.Color(mapa.corFundo);

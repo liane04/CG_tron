@@ -4,7 +4,7 @@
 import * as THREE from 'three';
 import { makeTextPlane } from '../textSprite.js';
 import { tween, Easing } from '../tween.js';
-import { sfxConfirm, unlockAudio, startMusic } from '../audioManager.js';
+import { sfxConfirm, unlockAudio, startMusic } from '../../audioManager.js';
 
 var group = null;
 var logoMesh = null;

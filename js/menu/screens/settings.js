@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import { makeTextPlane, updateTextPlane } from '../textSprite.js';
 import { tween, Easing } from '../tween.js';
-import { sfxNavigate, sfxToggle, sfxBack } from '../audioManager.js';
+import { sfxNavigate, sfxToggle, sfxBack } from '../../audioManager.js';
 
 var group = null;
 var rows = [];

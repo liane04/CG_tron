@@ -23,6 +23,7 @@ import { adicionarObjetosJungle, atualizarJungle }   from './objetos/arenaJungle
 
 import { initMenu, showMenu } from './menu/menuApp.js';
 import { playMapMusic, playMenuMusic } from './audioManager.js';
+import { initDebugGUI, updateDebugContext } from './debugGUI.js';
 
 // ---------------------------------------------------------------------------
 // Renderer (shared between menu and game)
@@ -140,6 +141,27 @@ function buildGame() {
     var skateJogador2 = null;
     var luzes = null;
 
+    // Configurar contexto para o GUI
+    var gameContext = {
+        luzes: null, cena: null, grupoArena: null,
+        ambientIntensity: 1.0, ambientColor: 0xffffff,
+        dirIntensity: 1.0, sceneBgColor: 0x000000,
+        wireframeMode: false,
+        temFog: false,
+        cameraMode: 'livre',
+        toggleShadows: false,
+        musicVolume: 0.6,
+        sfxVolume: 0.8,
+        updateAudio: function(s) {
+            import('./audioManager.js').then(am => am.setAudioSettings(s));
+        },
+        setCameraMode: function(m) {
+            modoCamara = m;
+            aplicarModoCamara();
+        }
+    };
+    initDebugGUI(gameContext);
+
     var offsetTerceiraPessoa = new THREE.Vector3(0, 3.5, 8);
     var alvoTerceiraPessoa  = new THREE.Vector3(0, 1, -2);
     var posCamTemp = new THREE.Vector3();
@@ -205,6 +227,9 @@ function buildGame() {
             camaraAtiva = camaraPerspetiva;
             modoCamara = 'livre';
         }
+        
+        // Atualiza a interface GUI com as novas referências do mapa
+        updateDebugContext(luzes, cena, grupoArena);
     }
 
     function aplicarModoCamara() {

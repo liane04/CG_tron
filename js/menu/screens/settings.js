@@ -17,16 +17,57 @@ var titleLabel = null;
 
 function makePanel() {
     var panel = new THREE.Group();
+    var w = 9.0, h = 6.4;
     var bg = new THREE.Mesh(
-        new THREE.PlaneGeometry(8.5, 6.0),
-        new THREE.MeshBasicMaterial({ color: 0x110022, transparent: true, opacity: 0.5, toneMapped: false })
+        new THREE.PlaneGeometry(w, h),
+        new THREE.MeshBasicMaterial({
+            color: 0x080418, transparent: true, opacity: 0.78,
+            toneMapped: false, depthWrite: false
+        })
     );
     panel.add(bg);
-    var border = new THREE.LineSegments(
-        new THREE.EdgesGeometry(bg.geometry),
-        new THREE.LineBasicMaterial({ color: 0xff2bd6, transparent: true, opacity: 0.8, toneMapped: false })
+
+    // Inner frame band
+    var inner = new THREE.LineSegments(
+        new THREE.EdgesGeometry(new THREE.PlaneGeometry(w - 0.25, h - 0.25)),
+        new THREE.LineBasicMaterial({ color: 0x00eaff, transparent: true, opacity: 0.7, toneMapped: false })
     );
+    inner.position.z = 0.005;
+    panel.add(inner);
+
+    var border = new THREE.LineSegments(
+        new THREE.EdgesGeometry(new THREE.PlaneGeometry(w, h)),
+        new THREE.LineBasicMaterial({ color: 0xff2bd6, transparent: true, opacity: 0.95, toneMapped: false })
+    );
+    border.position.z = 0.006;
     panel.add(border);
+
+    // Title bar (left aligned strip)
+    var bar = new THREE.Mesh(
+        new THREE.PlaneGeometry(w - 0.4, 0.05),
+        new THREE.MeshBasicMaterial({ color: 0x00eaff, toneMapped: false })
+    );
+    bar.position.set(0, h/2 - 0.65, 0.01);
+    panel.add(bar);
+
+    // Corner accents
+    function accent(x, y, dx, dy, color) {
+        var g = new THREE.Group();
+        var len = 0.45, th = 0.05;
+        var mat = new THREE.MeshBasicMaterial({ color: color, toneMapped: false });
+        var hor = new THREE.Mesh(new THREE.PlaneGeometry(len, th), mat);
+        hor.position.set(x + dx * len/2, y, 0);
+        g.add(hor);
+        var vert = new THREE.Mesh(new THREE.PlaneGeometry(th, len), mat);
+        vert.position.set(x, y + dy * len/2, 0);
+        g.add(vert);
+        return g;
+    }
+    panel.add(accent(-w/2 + 0.1,  h/2 - 0.1, +1, -1, 0x00eaff));
+    panel.add(accent( w/2 - 0.1,  h/2 - 0.1, -1, -1, 0x00eaff));
+    panel.add(accent(-w/2 + 0.1, -h/2 + 0.1, +1, +1, 0xff2bd6));
+    panel.add(accent( w/2 - 0.1, -h/2 + 0.1, -1, +1, 0xff2bd6));
+
     return panel;
 }
 
@@ -210,10 +251,18 @@ export function buildSettings(scene, settings) {
     group.add(panel);
 
     titleLabel = makeTextPlane('SETTINGS', {
-        fontSize: 90, color: '#ffffff', glowColor: '#ff2bd6', worldHeight: 0.5
+        fontSize: 100, color: '#ffffff', glowColor: '#ff2bd6',
+        worldHeight: 0.55, letterSpacing: 8, weight: '900', glowStrength: 1.2
     });
-    titleLabel.position.set(0, 2.5, 0.05);
+    titleLabel.position.set(0, 2.6, 0.05);
     group.add(titleLabel);
+
+    var sub = makeTextPlane('// SYSTEM  CONFIGURATION //', {
+        fontSize: 30, color: '#a0e8ff', glowColor: '#00eaff',
+        worldHeight: 0.18, letterSpacing: 3, weight: '500', glowStrength: 0.7
+    });
+    sub.position.set(0, 2.18, 0.05);
+    group.add(sub);
 
     var defs = buildRowDefs(settings);
     rows = [];
@@ -225,9 +274,10 @@ export function buildSettings(scene, settings) {
     });
 
     var hint = makeTextPlane('^ v  navegar    < >  ajustar    [ESC] voltar', {
-        fontSize: 36, color: '#9999cc', glowColor: '#3344aa', worldHeight: 0.18
+        fontSize: 40, color: '#aaaacc', glowColor: '#3344aa',
+        worldHeight: 0.26, letterSpacing: 2, weight: '500', glowStrength: 0.5
     });
-    hint.position.set(0, -2.7, 0.05);
+    hint.position.set(0, -2.9, 0.05);
     group.add(hint);
 
     scene.add(group);

@@ -12,23 +12,23 @@ var currentAnchor = null;
 
 export var ANCHORS = {
     SPLASH: {
-        position: new THREE.Vector3(0, 4, 18),
+        position: new THREE.Vector3(0, 4, 16),
         target:   new THREE.Vector3(0, 5, 0)
     },
     MAIN: {
-        position: new THREE.Vector3(0, 5, 18),
+        position: new THREE.Vector3(0, 5, 13),
         target:   new THREE.Vector3(0, 4, 0)
     },
     GARAGE: {
-        position: new THREE.Vector3(0, 3.5, 11),
+        position: new THREE.Vector3(0, 3.5, 9),
         target:   new THREE.Vector3(0, 1.6, 0)
     },
     SETTINGS: {
-        position: new THREE.Vector3(0, 5.5, 12),
+        position: new THREE.Vector3(0, 5.5, 9),
         target:   new THREE.Vector3(0, 4.5, 0)
     },
     TRACK_SELECT: {
-        position: new THREE.Vector3(0, 5, 16),
+        position: new THREE.Vector3(0, 5, 12),
         target:   new THREE.Vector3(0, 4, 0)
     },
     GAME_HANDOFF: {

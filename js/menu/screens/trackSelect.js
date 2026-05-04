@@ -6,7 +6,7 @@
 import * as THREE from 'three';
 import { makeTextPlane, updateTextPlane } from '../textSprite.js';
 import { tween, Easing } from '../tween.js';
-import { sfxNavigate, sfxConfirm, sfxBack } from '../audioManager.js';
+import { sfxNavigate, sfxConfirm, sfxBack } from '../../audioManager.js';
 import { mapas } from '../../mapas.js';
 
 var group = null;

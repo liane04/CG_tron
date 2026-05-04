@@ -8,7 +8,7 @@ import { initCameraRig, tickCameraRig } from './cameraRig.js';
 import { buildPostFX, resizePostFX, setPostFXCamera, setQuality, tickPostFX, getComposer } from './postFX.js';
 import { initInput, updateInput, setActiveHandler } from './inputManager.js';
 import { updateTweens } from './tween.js';
-import { setAudioSettings } from './audioManager.js';
+import { setAudioSettings } from '../audioManager.js';
 import { loadSettings, saveSettings } from './settingsStore.js';
 
 import { buildSplashScreen } from './screens/splashScreen.js';

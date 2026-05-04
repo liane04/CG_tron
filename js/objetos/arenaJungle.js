@@ -30,8 +30,8 @@ export function adicionarObjetosJungle(grupo, ARENA, loaderOBJ, loaderMTL) {
 function adicionarOddishJungle(grupo, ARENA, loaderOBJ, loaderMTL) {
     if (!loaderOBJ || !loaderMTL) return;
 
-    const mtlPath = './js/objetos/odish/materials.mtl';
-    const objPath = './js/objetos/odish/model.obj';
+    const mtlPath = './models/odish/materials.mtl';
+    const objPath = './models/odish/model.obj';
 
     loaderMTL.load(mtlPath, function (materials) {
         materials.preload();

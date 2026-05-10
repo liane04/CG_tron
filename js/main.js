@@ -310,7 +310,7 @@ function buildGame() {
             luzes.pontoMota2.position.y += 1.5;
         }
 
-        var alvo = skateJogador2;
+        var alvo = motaJogador1;
         if (modoCamara === 'terceiraPessoa' && alvo) {
             posCamTemp.copy(offsetTerceiraPessoa).applyQuaternion(alvo.quaternion);
             posCamTemp.add(alvo.position);

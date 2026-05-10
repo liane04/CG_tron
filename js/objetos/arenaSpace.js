@@ -27,11 +27,13 @@ export function adicionarObjetosSpace(grupo, ARENA, loader) {
     grupo.add(criarDroneVigia(posDrone));
 
     // 3. Monólitos Matrix (Posicionados FORA da arena para efeito de fundo)
+    // Coordenadas escaladas 1.5× para acompanhar o aumento da arena (70 → 105):
+    // sem isto, os monólitos passariam a aparecer dentro da zona jogável.
     const configMonolitos = [
-        { pos: new THREE.Vector3(50, 0, 10), rot: 0.5, scale: 2.5 },
-        { pos: new THREE.Vector3(-55, -5, -20), rot: -0.3, scale: 3.0 },
-        { pos: new THREE.Vector3(20, 10, 60), rot: 1.2, scale: 2.0 },
-        { pos: new THREE.Vector3(-40, -10, -50), rot: -0.8, scale: 4.0 }
+        { pos: new THREE.Vector3( 75, 0,  15), rot:  0.5, scale: 2.5 },
+        { pos: new THREE.Vector3(-82, -5, -30), rot: -0.3, scale: 3.0 },
+        { pos: new THREE.Vector3( 30, 10, 90), rot:  1.2, scale: 2.0 },
+        { pos: new THREE.Vector3(-60, -10,-75), rot: -0.8, scale: 4.0 }
     ];
 
     configMonolitos.forEach(cfg => {

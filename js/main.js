@@ -12,9 +12,12 @@ import { criarMota } from './mota.js';
 import { criarSkate, atualizarSkate, destruirSkate } from './skate.js';
 import { criarSpeeder, atualizarSpeeder } from './speeder.js';
 import { criarGlider, atualizarGlider } from './glider.js';
-import { inicializarInput, atualizarMotas, definirObstaculos } from './input.js';
+import { inicializarInput, atualizarMotas, definirObstaculos, definirIAJ1Ativa } from './input.js';
 import { criarLuzes, toggleLuz } from './luzes.js';
 import { mapas } from './mapas.js';
+import { criarTrail, destruirTrail } from './trail.js';
+import { configurarGameLogic, iniciarRonda, atualizarGameLogic, limparGameLogic } from './gameLogic.js';
+import { inicializarIA, atualizarIA } from './ai.js';
 
 import { adicionarObjetosSpace, atualizarSpace }     from './objetos/arenaSpace.js';
 import { adicionarObjetosDeserto, atualizarDeserto } from './objetos/arenaDeserto.js';
@@ -90,6 +93,7 @@ function start() {
 
 function backToMenu() {
     appMode = 'menu';
+    if (gameApi && gameApi.teardown) gameApi.teardown();
     document.getElementById('info').style.display = 'none';
     document.getElementById('hud-luzes').style.display = 'none';
     showMenu();
@@ -106,7 +110,7 @@ function ensureGameInitialised() {
 }
 
 function buildGame() {
-    var ARENA = 70;
+    var ARENA = 105;
     var cena = new THREE.Scene();
 
     var camaraPerspetiva = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 800);
@@ -140,6 +144,10 @@ function buildGame() {
     var motaJogador1 = null;
     var skateJogador2 = null;
     var luzes = null;
+    var trailMota = null;
+    var trailSkate = null;
+
+    var COR_SKATE_J2 = 0xff0066; // cor do veículo do jogador 2
 
     // Configurar contexto para o GUI
     var gameContext = {
@@ -172,8 +180,12 @@ function buildGame() {
         green: 0x59ff7c, purple: 0x9438ff, red: 0xff2244
     };
 
+    function resolverCorP1(garage) {
+        return (garage && COLOR_HEX[garage.colorId]) || 0x00ffff;
+    }
+
     function buildPlayer1(garage) {
-        var color = (garage && COLOR_HEX[garage.colorId]) || 0x00ffff;
+        var color = resolverCorP1(garage);
         var id = (garage && garage.vehicleId) || 'mota';
         if (id === 'mota')    return criarMota(color);
         if (id === 'skate')   return criarSkate(color);
@@ -187,6 +199,8 @@ function buildGame() {
         if (motaJogador1)  { cena.remove(motaJogador1);  motaJogador1 = null; }
         if (skateJogador2) { destruirSkate(skateJogador2); cena.remove(skateJogador2); skateJogador2 = null; }
         if (luzes) { Object.values(luzes).forEach(function (l) { cena.remove(l); }); luzes = null; }
+        if (trailMota)  { destruirTrail(trailMota,  cena); trailMota  = null; }
+        if (trailSkate) { destruirTrail(trailSkate, cena); trailSkate = null; }
 
         cena.background = new THREE.Color(mapa.corFundo);
         var corFog  = mapa.corFog  !== undefined ? mapa.corFog  : mapa.corFundo;
@@ -206,18 +220,43 @@ function buildGame() {
 
         // Player 1 — vehicle picked in the Garage. Player 2 stays as the
         // hover-skate counterpart so the split-screen multiplayer still works.
+        var corP1 = resolverCorP1(garage);
+        var corP2 = COR_SKATE_J2;
+
         motaJogador1 = buildPlayer1(garage);
         motaJogador1.position.set(-5, 0, 0);
         motaJogador1.rotation.y = 0;
         cena.add(motaJogador1);
 
-        skateJogador2 = criarSkate(0xff0066);
+        skateJogador2 = criarSkate(corP2);
         skateJogador2.position.set(5, 0, 0);
         skateJogador2.rotation.y = Math.PI;
         cena.add(skateJogador2);
 
         inicializarInput(motaJogador1, skateJogador2, ARENA);
         definirObstaculos(grupoArena);
+
+        // Trails — cor sincronizada com a do veículo correspondente
+        trailMota  = criarTrail(corP1, 300);
+        trailSkate = criarTrail(corP2, 300);
+        cena.add(trailMota.mesh);
+        cena.add(trailSkate.mesh);
+
+        // IA controla a mota
+        definirIAJ1Ativa(true);
+        inicializarIA(motaJogador1, trailMota, trailSkate, ARENA / 2);
+
+        // Configurar e arrancar a primeira ronda
+        configurarGameLogic({
+            cena: cena,
+            arena: ARENA,
+            motaRef: motaJogador1,
+            skateRef: skateJogador2,
+            trailMota: trailMota,
+            trailSkate: trailSkate,
+            cores: { 1: corP1, 2: corP2 }
+        });
+        iniciarRonda();
 
         // Apply menu-chosen camera mode
         if (menuSettings && menuSettings.visual && menuSettings.visual.cameraMode === 'orthographic') {
@@ -299,7 +338,9 @@ function buildGame() {
         atualizarSkate(delta);
         atualizarSpeeder(delta);
         atualizarGlider(delta);
+        atualizarIA(delta);
         atualizarMotas(delta);
+        atualizarGameLogic(delta);
 
         if (luzes && motaJogador1) {
             luzes.pontoMota1.position.copy(motaJogador1.position);
@@ -346,12 +387,19 @@ function buildGame() {
         }
     }
 
+    function teardown() {
+        limparGameLogic();
+        if (trailMota)  { destruirTrail(trailMota,  cena); trailMota  = null; }
+        if (trailSkate) { destruirTrail(trailSkate, cena); trailSkate = null; }
+    }
+
     return {
         startWithMap: startWithMap,
         update: update,
         render: render,
         onResize: onResize,
-        applySettings: applySettings
+        applySettings: applySettings,
+        teardown: teardown
     };
 }
 

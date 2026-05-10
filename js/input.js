@@ -3,13 +3,29 @@ import * as THREE from 'three';
 // --- Estado das teclas (preenchido pelos listeners) ---
 var teclas = {};
 
+// --- Teclas sintéticas para a IA ---
+// Quando iaAtivaJ1 === true, o jogador 1 (mota) ignora ArrowLeft/ArrowRight
+// reais e lê apenas estas flags, escritas pelo módulo ai.js.
+var iaAtivaJ1 = false;
+var teclasIA_J1 = { esq: false, dir: false };
+
 // --- Referências aos veículos e respetivos estados físicos ---
-// Jogador 1 → mota (controlo: setas + Shift)
+// Jogador 1 → mota (controlo: setas + Shift  ou  IA)
 // Jogador 2 → skate (controlo: WASD + Espaço)
 var motaJ1 = null;
 var skateJ2 = null;
 var estadoJ1 = null;
 var estadoJ2 = null;
+
+// --- Pausa por jogador (usado quando o jogador morre durante uma ronda) ---
+var pausadoJ1 = false;
+var pausadoJ2 = false;
+
+// --- Callback opcional para colisão com paredes ---
+// Segundo slot ("trail") reservado para uso futuro: a detecção de colisão
+// com trails é feita em gameLogic.js, não aqui.
+var aoColidirParedeJ1 = null;
+var aoColidirParedeJ2 = null;
 
 // --- Parâmetros gerais ---
 var VELOCIDADE_ROTACAO = 2.5;   // rad/s — viragem fluida
@@ -30,11 +46,11 @@ function aoPremir(e) {
     teclas[e.code] = true;
 
     // Saltos — disparo único no keydown
-    if ((e.code === 'ShiftLeft' || e.code === 'ShiftRight') && estadoJ1 && !estadoJ1.saltando) {
+    if ((e.code === 'ShiftLeft' || e.code === 'ShiftRight') && estadoJ1 && !estadoJ1.saltando && !pausadoJ1) {
         estadoJ1.saltando = true;
         estadoJ1.tSalto = 0;
     }
-    if (e.code === 'Space' && estadoJ2 && !estadoJ2.saltando) {
+    if (e.code === 'Space' && estadoJ2 && !estadoJ2.saltando && !pausadoJ2) {
         estadoJ2.saltando = true;
         estadoJ2.tSalto = 0;
     }
@@ -64,12 +80,15 @@ export function inicializarInput(mota, skate, arena) {
     estadoJ1 = criarEstado(mota);
     estadoJ2 = criarEstado(skate);
 
-    // Calcular raio de colisão a partir das dimensões reais do veículo
     raioJ1 = calcularRaioColisao(mota);
     raioJ2 = calcularRaioColisao(skate);
 
     // Limpar estado de teclas — evita heranças de sessões anteriores
     teclas = {};
+    teclasIA_J1.esq = false;
+    teclasIA_J1.dir = false;
+    pausadoJ1 = false;
+    pausadoJ2 = false;
 
     if (!listenersRegistados) {
         window.addEventListener('keydown', aoPremir);
@@ -79,9 +98,6 @@ export function inicializarInput(mota, skate, arena) {
 }
 
 function calcularRaioColisao(veiculo) {
-    // Raio aproximado no plano XZ. Usar 0.4× o lado maior dá uma colisão
-    // ligeiramente mais permissiva do que a AABB visual, evitando que o
-    // veículo encrave contra cantos enquanto vira.
     var box = new THREE.Box3().setFromObject(veiculo);
     if (box.isEmpty()) return 0.8;
     var size = new THREE.Vector3();
@@ -89,8 +105,6 @@ function calcularRaioColisao(veiculo) {
     return Math.max(size.x, size.z) * 0.4;
 }
 
-// Recolhe AABBs em espaço-mundo de todos os objetos marcados como obstáculo.
-// Deve ser chamada após criar a arena e os seus objetos decorativos.
 export function definirObstaculos(grupoArena) {
     obstaculos = [];
     if (!grupoArena) return;
@@ -100,7 +114,7 @@ export function definirObstaculos(grupoArena) {
         if (obj.userData && obj.userData.isObstacle) {
             var box = new THREE.Box3().setFromObject(obj);
             if (!box.isEmpty()) obstaculos.push(box);
-            return; // não descer na subárvore — a caixa do pai já a cobre
+            return;
         }
         for (var i = 0; i < obj.children.length; i++) {
             coletar(obj.children[i]);
@@ -109,13 +123,10 @@ export function definirObstaculos(grupoArena) {
     coletar(grupoArena);
 }
 
-// Testa colisão círculo-vs-AABB no plano XZ.
 function colideComObstaculo(posicao, raio) {
     for (var i = 0; i < obstaculos.length; i++) {
         var box = obstaculos[i];
-        // Sobreposição vertical — permite saltar sobre obstáculos baixos
         if (posicao.y > box.max.y || posicao.y + 1.5 < box.min.y) continue;
-        // Ponto da caixa mais próximo do veículo (no plano XZ)
         var cx = Math.max(box.min.x, Math.min(posicao.x, box.max.x));
         var cz = Math.max(box.min.z, Math.min(posicao.z, box.max.z));
         var dx = posicao.x - cx;
@@ -125,48 +136,48 @@ function colideComObstaculo(posicao, raio) {
     return false;
 }
 
-function atualizarJogador(veiculo, estado, teclaEsq, teclaDir, raio, delta) {
+function atualizarJogador(veiculo, estado, fonteTeclas, teclaEsq, teclaDir, raio, delta, paredeCb) {
     if (!veiculo || !estado) return;
 
-    // Rotação contínua enquanto a tecla estiver pressionada
-    if (teclas[teclaEsq])  veiculo.rotation.y += VELOCIDADE_ROTACAO * delta;
-    if (teclas[teclaDir])  veiculo.rotation.y -= VELOCIDADE_ROTACAO * delta;
+    if (fonteTeclas[teclaEsq])  veiculo.rotation.y += VELOCIDADE_ROTACAO * delta;
+    if (fonteTeclas[teclaDir])  veiculo.rotation.y -= VELOCIDADE_ROTACAO * delta;
 
-    // Atualizar vetor direção (alinhado com a frente visual, -Z em espaço local)
     estado.direcao.set(-Math.sin(veiculo.rotation.y), 0, -Math.cos(veiculo.rotation.y));
 
-    // Posição antes do movimento — necessária para resolver colisão com sliding
     var prevX = veiculo.position.x;
     var prevZ = veiculo.position.z;
 
-    // Movimento contínuo para a frente
     veiculo.position.addScaledVector(estado.direcao, estado.velocidade * delta);
 
-    // Limitar à arena (paredes exteriores)
+    // Limitar à arena (paredes exteriores) — disparar callback se foi clampado
     var margem = 0.5;
-    veiculo.position.x = Math.max(-LIMITE_ARENA + margem, Math.min(LIMITE_ARENA - margem, veiculo.position.x));
-    veiculo.position.z = Math.max(-LIMITE_ARENA + margem, Math.min(LIMITE_ARENA - margem, veiculo.position.z));
+    var limiteMax =  LIMITE_ARENA - margem;
+    var limiteMin = -LIMITE_ARENA + margem;
+    var bateuParede = false;
+    if (veiculo.position.x > limiteMax) { veiculo.position.x = limiteMax; bateuParede = true; }
+    else if (veiculo.position.x < limiteMin) { veiculo.position.x = limiteMin; bateuParede = true; }
+    if (veiculo.position.z > limiteMax) { veiculo.position.z = limiteMax; bateuParede = true; }
+    else if (veiculo.position.z < limiteMin) { veiculo.position.z = limiteMin; bateuParede = true; }
+    if (bateuParede && paredeCb) paredeCb();
 
-    // Colisão com obstáculos da arena — tenta deslizar mantendo o eixo livre
+    // Colisão com obstáculos da arena — qualquer contacto é letal.
+    // Tenta encostar o veículo ao limite (sliding) antes de disparar a morte
+    // para que a posição da explosão seja coerente com o local do impacto.
     if (obstaculos.length > 0 && colideComObstaculo(veiculo.position, raio)) {
         var newX = veiculo.position.x;
         var newZ = veiculo.position.z;
-
-        // 1) Reverter X (mantém movimento em Z — desliza ao longo de paredes verticais)
         veiculo.position.x = prevX;
         if (colideComObstaculo(veiculo.position, raio)) {
-            // 2) Reverter Z (mantém movimento em X — desliza ao longo de paredes horizontais)
             veiculo.position.x = newX;
             veiculo.position.z = prevZ;
             if (colideComObstaculo(veiculo.position, raio)) {
-                // 3) Sem saída lateral — bloquear completamente
                 veiculo.position.x = prevX;
                 veiculo.position.z = prevZ;
             }
         }
+        if (paredeCb) paredeCb();
     }
 
-    // Salto parabólico (sin) — mantém altura base ao aterrar
     if (estado.saltando) {
         estado.tSalto += delta;
         veiculo.position.y = estado.alturaBase +
@@ -181,6 +192,69 @@ function atualizarJogador(veiculo, estado, teclaEsq, teclaDir, raio, delta) {
 
 export function atualizarMotas(delta) {
     if (!motaJ1 || !skateJ2) return;
-    atualizarJogador(motaJ1,  estadoJ1, 'ArrowLeft', 'ArrowRight', raioJ1, delta);
-    atualizarJogador(skateJ2, estadoJ2, 'KeyA',      'KeyD',       raioJ2, delta);
+
+    if (!pausadoJ1) {
+        var fonteJ1 = iaAtivaJ1
+            ? { ArrowLeft: teclasIA_J1.esq, ArrowRight: teclasIA_J1.dir }
+            : teclas;
+        atualizarJogador(motaJ1,  estadoJ1, fonteJ1, 'ArrowLeft', 'ArrowRight', raioJ1, delta,
+            aoColidirParedeJ1);
+    }
+    if (!pausadoJ2) {
+        atualizarJogador(skateJ2, estadoJ2, teclas, 'KeyA', 'KeyD', raioJ2, delta,
+            aoColidirParedeJ2);
+    }
 }
+
+// ---------------------------------------------------------------
+// API extra usada pela lógica de jogo / IA
+// ---------------------------------------------------------------
+
+export function definirIAJ1Ativa(ativa) {
+    iaAtivaJ1 = !!ativa;
+    teclasIA_J1.esq = false;
+    teclasIA_J1.dir = false;
+}
+
+export function escreverTeclasIA(esq, dir) {
+    teclasIA_J1.esq = !!esq;
+    teclasIA_J1.dir = !!dir;
+}
+
+export function pausarJogador(idx, pausado) {
+    if (idx === 1) pausadoJ1 = !!pausado;
+    else if (idx === 2) pausadoJ2 = !!pausado;
+}
+
+export function pausarTodos(pausado) {
+    pausadoJ1 = !!pausado;
+    pausadoJ2 = !!pausado;
+}
+
+// (jogadorId, cbParede, cbTrail) — cbTrail está reservado para uso futuro;
+// a colisão com trails é detectada em gameLogic.js. Por agora só cbParede é usado.
+export function definirCallbackColisao(idx, paredeCb, _trailCbReservado) {
+    if (idx === 1) {
+        aoColidirParedeJ1 = paredeCb || null;
+    } else if (idx === 2) {
+        aoColidirParedeJ2 = paredeCb || null;
+    }
+}
+
+export function reposicionarJogador(idx, x, z, rotY) {
+    var v = (idx === 1) ? motaJ1 : (idx === 2 ? skateJ2 : null);
+    var st = (idx === 1) ? estadoJ1 : (idx === 2 ? estadoJ2 : null);
+    if (!v || !st) return;
+    v.position.x = x;
+    v.position.z = z;
+    v.position.y = st.alturaBase;
+    v.rotation.y = rotY;
+    st.direcao.set(-Math.sin(rotY), 0, -Math.cos(rotY));
+    st.saltando = false;
+    st.tSalto = 0;
+}
+
+export function obterLimiteArena() { return LIMITE_ARENA; }
+export function obterMotaJ1() { return motaJ1; }
+export function obterSkateJ2() { return skateJ2; }
+export function obterRotacaoJ1() { return motaJ1 ? motaJ1.rotation.y : 0; }

@@ -204,17 +204,20 @@ function buildGame() {
         if (mapa.id === 'jungle')  adicionarObjetosJungle(grupoArena, ARENA, loaderOBJ, loaderMTL);
         if (mapa.id === 'gelo')    adicionarObjetosGelo(grupoArena, ARENA, loaderGlobal);
 
-        // Player 1 — vehicle picked in the Garage. Player 2 stays as the
-        // hover-skate counterpart so the split-screen multiplayer still works.
+        // Player 1 — vehicle picked in the Garage.
+        var corP1 = (garage && COLOR_HEX[garage.colorId]) || 0x00ffff;
         motaJogador1 = buildPlayer1(garage);
         motaJogador1.position.set(-5, 0, 0);
         motaJogador1.rotation.y = 0;
         cena.add(motaJogador1);
+        if (luzes.pontoMota1) luzes.pontoMota1.color.set(corP1);
 
-        skateJogador2 = criarSkate(0xff0066);
+        var corP2 = 0xff0066; // Cor padrão do Jogador 2
+        skateJogador2 = criarSkate(corP2);
         skateJogador2.position.set(5, 0, 0);
         skateJogador2.rotation.y = Math.PI;
         cena.add(skateJogador2);
+        if (luzes.pontoMota2) luzes.pontoMota2.color.set(corP2);
 
         inicializarInput(motaJogador1, skateJogador2, ARENA);
         definirObstaculos(grupoArena);

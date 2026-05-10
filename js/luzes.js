@@ -14,10 +14,10 @@ export function criarLuzes(cena, mapa) {
     luzes.pontoArena.position.set(0, 15, 0);
     cena.add(luzes.pontoArena);
 
-    luzes.pontoMota1 = new THREE.PointLight(0x00ffff, 0.8, 15);
+    luzes.pontoMota1 = new THREE.PointLight(0xffffff, 0.8, 15);
     cena.add(luzes.pontoMota1);
 
-    luzes.pontoMota2 = new THREE.PointLight(0xff0066, 0.8, 15);
+    luzes.pontoMota2 = new THREE.PointLight(0xffffff, 0.8, 15);
     cena.add(luzes.pontoMota2);
 
     if (mapa.id === 'deserto') {
@@ -36,8 +36,7 @@ export function criarLuzes(cena, mapa) {
 
         luzes.ambiente.intensity = 1.2;
         luzes.pontoArena.color.set(0xff8800);
-        luzes.pontoMota1.color.set(0x00ffff);
-        luzes.pontoMota2.color.set(0xff0066);
+        // Cores das motas removidas para serem dinâmicas no main.js
     } else if (mapa.id === 'jungle') {
         luzes.direcional.color.set(0xa8d870);
         luzes.direcional.intensity = 0.6;

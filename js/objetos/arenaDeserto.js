@@ -141,6 +141,26 @@ function construirFalesiaDeserto(grupo, ARENA) {
             grupo.add(bloco);
         }
     }
+
+    // Criar 4 caixas invisíveis lisas para atuar como hitbox da parede interna
+    // para evitar que a mota fique presa nas irregularidades ou atravesse
+    var matInvisivel = new THREE.MeshBasicMaterial({ visible: false });
+    var hitboxEspessura = 2;
+    var margemInterna = metade - 0.5; // Alinhado com a face interna das falesias
+
+    var hitboxes = [
+        { pos: [0, 5, margemInterna + hitboxEspessura/2], tam: [ARENA, 10, hitboxEspessura] },
+        { pos: [0, 5, -margemInterna - hitboxEspessura/2], tam: [ARENA, 10, hitboxEspessura] },
+        { pos: [margemInterna + hitboxEspessura/2, 5, 0], tam: [hitboxEspessura, 10, ARENA] },
+        { pos: [-margemInterna - hitboxEspessura/2, 5, 0], tam: [hitboxEspessura, 10, ARENA] }
+    ];
+
+    hitboxes.forEach(hb => {
+        var caixa = new THREE.Mesh(new THREE.BoxGeometry(hb.tam[0], hb.tam[1], hb.tam[2]), matInvisivel);
+        caixa.position.set(hb.pos[0], hb.pos[1], hb.pos[2]);
+        caixa.userData.isObstacle = true;
+        grupo.add(caixa);
+    });
 }
 
 function construirDunas(grupo, ARENA, loader, mapa) {
@@ -219,6 +239,7 @@ function construirMonolitos(grupo, ARENA) {
             seg.rotation.z = (Math.random() - 0.5) * 0.15;
             seg.castShadow = true;
             seg.receiveShadow = true;
+            seg.userData.isObstacle = true; // Hitbox justa para cada segmento do monolito
             grupoMono.add(seg);
             yAtual += hEste * 0.9;
         }
@@ -358,14 +379,22 @@ function criarFormacaoRochenta(posicao, loader) {
             Math.random() * Math.PI,
             (Math.random() - 0.5) * 0.2
         );
-        
         pedra.castShadow = true;
         pedra.receiveShadow = true;
         grupo.add(pedra);
+
+        // Criar hitbox invisível ligeiramente mais pequena (75% da largura/profundidade)
+        // para evitar "colisões fantasma" e permitir raspar nas pedras
+        var matInvisivel = new THREE.MeshBasicMaterial({ visible: false });
+        var hitboxPedra = new THREE.Mesh(geo, matInvisivel);
+        hitboxPedra.position.copy(pedra.position);
+        hitboxPedra.rotation.copy(pedra.rotation);
+        hitboxPedra.scale.set(0.75, 1.0, 0.75);
+        hitboxPedra.userData.isObstacle = true;
+        grupo.add(hitboxPedra);
     }
 
     grupo.position.copy(posicao);
-    grupo.userData.isObstacle = true; // Marcar como obstáculo
     return grupo;
 }
 
@@ -729,5 +758,13 @@ function construirArvoresDeserto(grupo, ARENA, loaderGLTF) {
 
             grupo.add(arvore);
         });
+
+        // Adicionar uma hitbox invisível IMEDIATAMENTE (síncrona) 
+        // para que seja processada antes do modelo carregar
+        var matInvisivel = new THREE.MeshBasicMaterial({ visible: false });
+        var hitboxArvore = new THREE.Mesh(new THREE.BoxGeometry(1.5, 10, 1.5), matInvisivel);
+        hitboxArvore.position.set(x, 5, z);
+        hitboxArvore.userData.isObstacle = true;
+        grupo.add(hitboxArvore);
     }
 }

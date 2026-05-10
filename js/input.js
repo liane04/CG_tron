@@ -64,9 +64,14 @@ export function inicializarInput(mota, skate, arena) {
     estadoJ1 = criarEstado(mota);
     estadoJ2 = criarEstado(skate);
 
-    // Calcular raio de colisão a partir das dimensões reais do veículo
-    raioJ1 = calcularRaioColisao(mota);
-    raioJ2 = calcularRaioColisao(skate);
+    // Calcular dimensões exatas de colisão (AABB -> OBB)
+    var dim1 = calcularDimensoes(mota);
+    estadoJ1.hw = dim1.hw;
+    estadoJ1.hl = dim1.hl;
+
+    var dim2 = calcularDimensoes(skate);
+    estadoJ2.hw = dim2.hw;
+    estadoJ2.hl = dim2.hl;
 
     // Limpar estado de teclas — evita heranças de sessões anteriores
     teclas = {};
@@ -78,15 +83,24 @@ export function inicializarInput(mota, skate, arena) {
     }
 }
 
-function calcularRaioColisao(veiculo) {
-    // Raio aproximado no plano XZ. Usar 0.4× o lado maior dá uma colisão
-    // ligeiramente mais permissiva do que a AABB visual, evitando que o
-    // veículo encrave contra cantos enquanto vira.
+function calcularDimensoes(veiculo) {
+    // Guardar rotação original
+    var rotY = veiculo.rotation.y;
+    // Colocar a 0 para obter o tamanho local exato em X (largura) e Z (comprimento)
+    veiculo.rotation.y = 0;
+    veiculo.updateMatrixWorld(true);
+    
     var box = new THREE.Box3().setFromObject(veiculo);
-    if (box.isEmpty()) return 0.8;
     var size = new THREE.Vector3();
-    box.getSize(size);
-    return Math.max(size.x, size.z) * 0.4;
+    if (!box.isEmpty()) box.getSize(size);
+    else size.set(1.6, 1.6, 3.2); // Fallback
+    
+    // Restaurar rotação original
+    veiculo.rotation.y = rotY;
+    veiculo.updateMatrixWorld(true);
+    
+    // Usa 0.45 (90% de metade) para dar uma minúscula tolerância e evitar encravar em paredes
+    return { hw: size.x * 0.45, hl: size.z * 0.45 };
 }
 
 // Recolhe AABBs em espaço-mundo de todos os objetos marcados como obstáculo.
@@ -109,23 +123,53 @@ export function definirObstaculos(grupoArena) {
     coletar(grupoArena);
 }
 
-// Testa colisão círculo-vs-AABB no plano XZ.
-function colideComObstaculo(posicao, raio) {
+// Testa colisão OBB (veículo) vs AABB (obstáculos) usando o Separating Axis Theorem (SAT)
+function colideComObstaculo(posicao, estado, angulo) {
+    var cx = posicao.x;
+    var cz = posicao.z;
+    var hw = estado.hw;
+    var hl = estado.hl;
+    var cos = Math.cos(angulo);
+    var sin = Math.sin(angulo);
+
     for (var i = 0; i < obstaculos.length; i++) {
         var box = obstaculos[i];
-        // Sobreposição vertical — permite saltar sobre obstáculos baixos
+        // Sobreposição vertical
         if (posicao.y > box.max.y || posicao.y + 1.5 < box.min.y) continue;
-        // Ponto da caixa mais próximo do veículo (no plano XZ)
-        var cx = Math.max(box.min.x, Math.min(posicao.x, box.max.x));
-        var cz = Math.max(box.min.z, Math.min(posicao.z, box.max.z));
-        var dx = posicao.x - cx;
-        var dz = posicao.z - cz;
-        if (dx * dx + dz * dz < raio * raio) return true;
+
+        var bcx = (box.min.x + box.max.x) / 2;
+        var bcz = (box.min.z + box.max.z) / 2;
+        var bhw = (box.max.x - box.min.x) / 2;
+        var bhl = (box.max.z - box.min.z) / 2;
+
+        var dx = cx - bcx;
+        var dz = cz - bcz;
+
+        // Eixo 1: X global
+        var projOBB_X = hw * Math.abs(cos) + hl * Math.abs(sin);
+        if (Math.abs(dx) > bhw + projOBB_X) continue;
+
+        // Eixo 2: Z global
+        var projOBB_Z = hw * Math.abs(sin) + hl * Math.abs(cos);
+        if (Math.abs(dz) > bhl + projOBB_Z) continue;
+
+        // Eixo 3: X local do veículo
+        var dist_LX = Math.abs(dx * cos - dz * sin);
+        var projAABB_LX = bhw * Math.abs(cos) + bhl * Math.abs(sin);
+        if (dist_LX > hw + projAABB_LX) continue;
+
+        // Eixo 4: Z local do veículo
+        var dist_LZ = Math.abs(dx * sin + dz * cos);
+        var projAABB_LZ = bhw * Math.abs(sin) + bhl * Math.abs(cos);
+        if (dist_LZ > hl + projAABB_LZ) continue;
+
+        // Se falhou todos os testes de separação, há colisão!
+        return true;
     }
     return false;
 }
 
-function atualizarJogador(veiculo, estado, teclaEsq, teclaDir, raio, delta) {
+function atualizarJogador(veiculo, estado, teclaEsq, teclaDir, delta) {
     if (!veiculo || !estado) return;
 
     // Rotação contínua enquanto a tecla estiver pressionada
@@ -147,18 +191,18 @@ function atualizarJogador(veiculo, estado, teclaEsq, teclaDir, raio, delta) {
     veiculo.position.x = Math.max(-LIMITE_ARENA + margem, Math.min(LIMITE_ARENA - margem, veiculo.position.x));
     veiculo.position.z = Math.max(-LIMITE_ARENA + margem, Math.min(LIMITE_ARENA - margem, veiculo.position.z));
 
-    // Colisão com obstáculos da arena — tenta deslizar mantendo o eixo livre
-    if (obstaculos.length > 0 && colideComObstaculo(veiculo.position, raio)) {
+    // Colisão OBB com obstáculos da arena — tenta deslizar mantendo o eixo livre
+    if (obstaculos.length > 0 && colideComObstaculo(veiculo.position, estado, veiculo.rotation.y)) {
         var newX = veiculo.position.x;
         var newZ = veiculo.position.z;
 
         // 1) Reverter X (mantém movimento em Z — desliza ao longo de paredes verticais)
         veiculo.position.x = prevX;
-        if (colideComObstaculo(veiculo.position, raio)) {
+        if (colideComObstaculo(veiculo.position, estado, veiculo.rotation.y)) {
             // 2) Reverter Z (mantém movimento em X — desliza ao longo de paredes horizontais)
             veiculo.position.x = newX;
             veiculo.position.z = prevZ;
-            if (colideComObstaculo(veiculo.position, raio)) {
+            if (colideComObstaculo(veiculo.position, estado, veiculo.rotation.y)) {
                 // 3) Sem saída lateral — bloquear completamente
                 veiculo.position.x = prevX;
                 veiculo.position.z = prevZ;
@@ -181,6 +225,6 @@ function atualizarJogador(veiculo, estado, teclaEsq, teclaDir, raio, delta) {
 
 export function atualizarMotas(delta) {
     if (!motaJ1 || !skateJ2) return;
-    atualizarJogador(motaJ1,  estadoJ1, 'ArrowLeft', 'ArrowRight', raioJ1, delta);
-    atualizarJogador(skateJ2, estadoJ2, 'KeyA',      'KeyD',       raioJ2, delta);
+    atualizarJogador(motaJ1,  estadoJ1, 'ArrowLeft', 'ArrowRight', delta);
+    atualizarJogador(skateJ2, estadoJ2, 'KeyA',      'KeyD',       delta);
 }

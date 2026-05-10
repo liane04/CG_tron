@@ -198,6 +198,13 @@ function construirArvoresJungle(grupo, ARENA) {
         arvore.position.set(x, 0, z);
         arvore.rotation.y = Math.random() * Math.PI * 2;
         grupo.add(arvore);
+
+        // Hitbox muito pequena (invisível) apenas para o tronco, permitindo atravessar as folhas
+        var matInvisivel = new THREE.MeshBasicMaterial({ visible: false });
+        var hitboxArvore = new THREE.Mesh(new THREE.BoxGeometry(0.5, 10, 0.5), matInvisivel);
+        hitboxArvore.position.set(x, 5, z);
+        hitboxArvore.userData.isObstacle = true;
+        grupo.add(hitboxArvore);
     }
 }
 
@@ -241,6 +248,14 @@ function construirRochasJungle(grupo, ARENA) {
             rocha.castShadow = true;
             rocha.receiveShadow = true;
             grupo.add(rocha);
+
+            // Hitbox muito pequena para os arbustos/rochas (metade do tamanho visual)
+            var matInvisivel = new THREE.MeshBasicMaterial({ visible: false });
+            var dim = raio * 0.5; // Hitbox bem menor que a rocha
+            var hitboxRocha = new THREE.Mesh(new THREE.BoxGeometry(dim, dim, dim), matInvisivel);
+            hitboxRocha.position.copy(rocha.position);
+            hitboxRocha.userData.isObstacle = true;
+            grupo.add(hitboxRocha);
         }
     }
 }

@@ -56,7 +56,6 @@ export function adicionarObjetosSpace(grupo, ARENA, loader) {
         const hudObstaculo = criarHUDHolografico(posHUD, 0x00ffff, loader);
         hudObstaculo.rotation.y = Math.random() * Math.PI * 2;
         hudObstaculo.userData.baseY = 1.6;
-        hudObstaculo.userData.isObstacle = true; 
         grupo.add(hudObstaculo);
     }
 }
@@ -164,6 +163,14 @@ function construirPilarTecnologico(posicao) {
     corpo.castShadow = true;
     corpo.receiveShadow = true;
     pilarGrupo.add(corpo);
+
+    // Hitbox invisível usando o mesmo truque (ligeiramente mais pequena)
+    const matInvisivel = new THREE.MeshBasicMaterial({ visible: false });
+    const hitboxPilar = new THREE.Mesh(geoCorpo, matInvisivel);
+    hitboxPilar.position.copy(corpo.position);
+    hitboxPilar.scale.set(0.75, 1.0, 0.75);
+    hitboxPilar.userData.isObstacle = true;
+    pilarGrupo.add(hitboxPilar);
 
     // 2. Materiais Neon
     const matNeon = new THREE.MeshStandardMaterial({
@@ -273,11 +280,18 @@ function criarNucleoADN(posicao) {
     pilar.position.y = alturaTotal / 2;
     grupoTorre.add(pilar);
 
-    // 2. Tubo de Vidro (Cylinder - Estático / Futura Hitbox)
     const geoVidro = new THREE.CylinderGeometry(raioTubo, raioTubo, alturaTotal, 16);
     const vidro = new THREE.Mesh(geoVidro, matVidro);
     vidro.position.y = alturaTotal / 2;
     grupoTorre.add(vidro);
+
+    // Hitbox invisível usando o truque de escala (75% da espessura)
+    const matInvisivel = new THREE.MeshBasicMaterial({ visible: false });
+    const hitboxTorre = new THREE.Mesh(geoVidro, matInvisivel);
+    hitboxTorre.position.copy(vidro.position);
+    hitboxTorre.scale.set(0.75, 1.0, 0.75);
+    hitboxTorre.userData.isObstacle = true;
+    grupoTorre.add(hitboxTorre);
 
     // 3. Gerar Partículas em Dupla Hélice (Box - Animadas)
     const geoParticula = new THREE.BoxGeometry(0.12, 0.12, 0.12); 
@@ -559,6 +573,13 @@ function criarHUDHolografico(posicao, corNeon, loader) {
 
     grupoHUD.position.copy(posicao);
     
+    // Hitbox invisível central, consideravelmente mais pequena (para poder raspar nas pontas)
+    const matInvisivel = new THREE.MeshBasicMaterial({ visible: false });
+    const hitboxHUD = new THREE.Mesh(new THREE.BoxGeometry(3.5, 4.0, 0.5), matInvisivel);
+    hitboxHUD.position.set(0, 0, 0.5); // Ligeiramente alinhada com os painéis
+    hitboxHUD.userData.isObstacle = true;
+    grupoHUD.add(hitboxHUD);
+
     // Identificador para animação (desativado conforme pedido)
     grupoHUD.userData.tipo = 'hud';
     

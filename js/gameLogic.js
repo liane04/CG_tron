@@ -25,7 +25,8 @@ const estado = {
     raioBuscaTrail: 10,              // culling: ignora segmentos a mais de N unidades
     overlay: null,                   // div HTML do ecrã de resultado
     listenerEnter: null,
-    cores: { 1: 0xff2bd6, 2: 0x00eaff }
+    cores: { 1: 0xff2bd6, 2: 0x00eaff },
+    gameMode: 'ai'                    // 'ai' | 'local1v1' — usado para o texto de vitória
 };
 
 // ---------------------------------------------------------------
@@ -39,6 +40,7 @@ export function configurarGameLogic(opts) {
     estado.trailMota  = opts.trailMota;
     estado.trailSkate = opts.trailSkate;
     if (opts.cores) Object.assign(estado.cores, opts.cores);
+    if (opts.gameMode) estado.gameMode = opts.gameMode;
 
     // Wall hits = morte. 2.º slot (cbTrail) é reservado: a colisão com trails
     // é detectada aqui (verificarColisaoTrails), não em input.js.
@@ -399,9 +401,20 @@ function obterOverlay() {
 
 function mostrarResultado(venceuId) {
     var ov = obterOverlay();
-    // No setup atual: J1 = Humano (Cyan), J2 = IA (Magenta)
-    var texto = venceuId === 1 ? 'PLAYER WINS' : 'AI WINS';
-    var corHex = venceuId === 1 ? '#00eaff' : '#ff2bd6';
+    // No modo single-player o J1 é o humano e o J2 é a IA; no 1v1 ambos são
+    // humanos e mostramos "PLAYER 1/2 WINS" para o vencedor identificar-se.
+    var texto;
+    if (estado.gameMode === 'local1v1') {
+        texto = venceuId === 1 ? 'PLAYER 1 WINS' : 'PLAYER 2 WINS';
+    } else {
+        texto = venceuId === 1 ? 'PLAYER WINS' : 'AI WINS';
+    }
+    // Usa a cor real do vencedor (definida em main.js via cores: { 1, 2 }).
+    // Cai para os tons clássicos cyan/magenta se por algum motivo não houver.
+    var corNum = estado.cores[venceuId];
+    var corHex = (corNum !== undefined)
+        ? '#' + corNum.toString(16).padStart(6, '0')
+        : (venceuId === 1 ? '#00eaff' : '#ff2bd6');
     var titulo = ov.firstChild;
     titulo.textContent = texto;
     titulo.style.color = corHex;

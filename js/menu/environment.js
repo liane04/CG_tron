@@ -5,8 +5,17 @@ import * as THREE from 'three';
 
 var stars = null;
 var grid = null;
+var ambientLight = null;
+var dirLight = null;
 var pinkLight = null;
 var cyanLight = null;
+
+// Multiplicador global das luzes do ambiente do menu — baixado pela Garagem
+// para que o emissivo neon dos veículos se destaque em vez de ficar lavado.
+var lightingMultiplier = 1.0;
+var BASE_AMBIENT = 0.55;
+var BASE_DIR = 0.45;
+var BASE_POINT = 1.0;
 
 var t = 0;
 
@@ -44,18 +53,18 @@ export function buildEnvironment(scene) {
     group.add(stars);
 
     // --- Lights ---
-    var ambient = new THREE.AmbientLight(0x221144, 0.55);
-    scene.add(ambient);
+    ambientLight = new THREE.AmbientLight(0x221144, BASE_AMBIENT);
+    scene.add(ambientLight);
 
-    var dirLight = new THREE.DirectionalLight(0x99aaff, 0.45);
+    dirLight = new THREE.DirectionalLight(0x99aaff, BASE_DIR);
     dirLight.position.set(20, 30, 20);
     scene.add(dirLight);
 
-    pinkLight = new THREE.PointLight(0xff2bd6, 1.0, 50);
+    pinkLight = new THREE.PointLight(0xff2bd6, BASE_POINT, 50);
     pinkLight.position.set(-12, 6, 4);
     scene.add(pinkLight);
 
-    cyanLight = new THREE.PointLight(0x00eaff, 1.0, 50);
+    cyanLight = new THREE.PointLight(0x00eaff, BASE_POINT, 50);
     cyanLight.position.set(12, 6, 4);
     scene.add(cyanLight);
 
@@ -106,6 +115,15 @@ function makeStars() {
 export function updateEnvironment(dt) {
     t += dt;
     if (stars) stars.rotation.y += dt * 0.004;
-    if (pinkLight) pinkLight.intensity = 0.9 + Math.sin(t * 1.0) * 0.2;
-    if (cyanLight) cyanLight.intensity = 0.9 + Math.sin(t * 1.0 + Math.PI) * 0.2;
+    if (pinkLight) pinkLight.intensity = (0.9 + Math.sin(t * 1.0) * 0.2) * lightingMultiplier;
+    if (cyanLight) cyanLight.intensity = (0.9 + Math.sin(t * 1.0 + Math.PI) * 0.2) * lightingMultiplier;
+}
+
+// Multiplicador 1.0 = normal; <1 escurece. A Garagem baixa para ~0.25 para que
+// o emissivo neon dos veículos pareça brilhar contra um "estúdio" mais escuro.
+export function setLightingMultiplier(m) {
+    lightingMultiplier = m;
+    if (ambientLight) ambientLight.intensity = BASE_AMBIENT * m;
+    if (dirLight) dirLight.intensity = BASE_DIR * m;
+    // Os PointLights são atualizados em updateEnvironment via lightingMultiplier
 }

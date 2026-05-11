@@ -99,8 +99,18 @@ function rebuildVehicleMesh() {
     var mesh = vehicle.build(color);
     mesh.position.set(0, 0.25 + (vehicle.podiumOffsetY || 0), 0);
     mesh.rotation.y = oldRotY;
+    desligarLuzesEmbutidas(mesh);
     podium.add(mesh);
     currentVehicleMesh = mesh;
+}
+
+// As motas/skates/speeders trazem PointLights próprios para criar o glow neon
+// dentro do jogo. No "estúdio" da garagem deixavam o veículo demasiado lavado;
+// desligamos só na cena do menu — o emissivo dos materiais continua a brilhar.
+function desligarLuzesEmbutidas(mesh) {
+    mesh.traverse(function (child) {
+        if (child.isLight) child.intensity = 0;
+    });
 }
 
 function swapVehicle(direction) {
@@ -114,6 +124,7 @@ function swapVehicle(direction) {
     var vehicle = VEHICLES[currentVehicleIndex];
     var mesh = vehicle.build(COLORS[0]);
     mesh.position.set(-direction * 4, 0.25 + (vehicle.podiumOffsetY || 0), 0);
+    desligarLuzesEmbutidas(mesh);
     podium.add(mesh);
     currentVehicleMesh = mesh;
     tween(mesh.position, { x: 0 }, { duration: 0.4, easing: Easing.easeOut });

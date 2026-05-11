@@ -266,7 +266,8 @@ function buildGame() {
             skateRef: skateJogador2,
             trailMota: trailMota,
             trailSkate: trailSkate,
-            cores: { 1: corP1, 2: corP2 }
+            cores: { 1: corP1, 2: corP2 },
+            gameMode: modoJogoAtual
         });
         iniciarRonda();
 

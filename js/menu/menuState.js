@@ -4,6 +4,7 @@
 
 import { moveTo, ANCHORS } from './cameraRig.js';
 import { setActiveHandler, setHoverables } from './inputManager.js';
+import { setLightingMultiplier } from './environment.js';
 
 import { showSplash, hideSplash, getSplashHandler, updateSplash } from './screens/splashScreen.js';
 import { showMainMenu, hideMainMenu, getMainMenuHandler, getMainMenuHoverables, updateMainMenu } from './screens/mainMenu.js';
@@ -46,6 +47,10 @@ function goToState(next, opts) {
     if (next === currentState) return;
     var prev = currentState;
     currentState = next;
+
+    // Estúdio da Garagem fica mais escuro para o emissivo neon do veículo
+    // se destacar. Outros ecrãs voltam ao iluminamento normal.
+    setLightingMultiplier(next === STATES.GARAGE ? 0.25 : 1.0);
 
     var hideAfter = function () {
         if (prev === STATES.SPLASH)        hideSplash();

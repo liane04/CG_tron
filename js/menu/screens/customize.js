@@ -184,6 +184,11 @@ function rebuildPreview() {
     vehicleMesh = vDef.build(color);
     vehicleMesh.position.set(0, vDef.podiumOffsetY || 0, 0);
     vehicleMesh.rotation.y = Math.PI / 2; // Face sideways (parallel to screen)
+    // Veículos têm PointLights próprios para o glow dentro do jogo — no menu
+    // ficavam demasiado iluminados, basta o emissivo dos materiais.
+    vehicleMesh.traverse(function (child) {
+        if (child.isLight) child.intensity = 0;
+    });
     group.add(vehicleMesh);
 
     currentTrail = criarTrail(color.hex, 150, TRAILS[currentTrailIndex].id);

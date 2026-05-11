@@ -103,7 +103,7 @@ function makePodium() {
 }
 
 function makeSpotlight(color) {
-    var spot = new THREE.SpotLight(color, 1.2, 16, Math.PI * 0.18, 0.4, 1.2);
+    var spot = new THREE.SpotLight(color, 0.55, 16, Math.PI * 0.18, 0.4, 1.2);
     spot.position.set(0, 7, 0);
     var target = new THREE.Object3D();
     target.position.set(0, 0, 0);

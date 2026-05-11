@@ -13,7 +13,7 @@ import { criarSkate, atualizarSkate, destruirSkate } from './skate.js';
 import { criarSpeeder, atualizarSpeeder } from './speeder.js';
 import { criarGlider, atualizarGlider } from './glider.js';
 import { inicializarInput, atualizarMotas, definirObstaculos, definirIAJ1Ativa, definirIAJ2Ativa } from './input.js';
-import { criarLuzes, toggleLuz } from './luzes.js';
+import { criarLuzes } from './luzes.js';
 import { mapas } from './mapas.js';
 import { criarTrail, destruirTrail } from './trail.js';
 import { configurarGameLogic, iniciarRonda, atualizarGameLogic, limparGameLogic } from './gameLogic.js';
@@ -21,7 +21,6 @@ import { inicializarIA, atualizarIA } from './ai.js';
 
 import { adicionarObjetosSpace, atualizarSpace } from './objetos/arenaSpace.js';
 import { adicionarObjetosDeserto, atualizarDeserto } from './objetos/arenaDeserto.js';
-import { adicionarObjetosGelo, atualizarGelo } from './objetos/arenaGelo.js';
 import { adicionarObjetosJungle, atualizarJungle } from './objetos/arenaJungle.js';
 
 import { initMenu, showMenu } from './menu/menuApp.js';
@@ -70,7 +69,6 @@ function start() {
             playMapMusic(pickedMap.id);
             appMode = 'game';
             document.getElementById('info').style.display = 'block';
-            document.getElementById('hud-luzes').style.display = 'flex';
         },
         onSettingsChange: function (s) {
             menuSettings = s;
@@ -95,7 +93,6 @@ function backToMenu() {
     appMode = 'menu';
     if (gameApi && gameApi.teardown) gameApi.teardown();
     document.getElementById('info').style.display = 'none';
-    document.getElementById('hud-luzes').style.display = 'none';
     showMenu();
     playMenuMusic();
 }
@@ -209,14 +206,12 @@ function buildGame() {
         cena.fog = mapa.temFog === false ? null : new THREE.Fog(corFog, fogNear, fogFar);
 
         luzes = criarLuzes(cena, mapa);
-        atualizarHUDLuzes();
 
         grupoArena = criarArena(cena, ARENA, mapa);
 
         if (mapa.id === 'space') adicionarObjetosSpace(grupoArena, ARENA, loaderGlobal);
         if (mapa.id === 'deserto') adicionarObjetosDeserto(grupoArena, ARENA, loaderGlobal, mapa, loaderGLTF);
         if (mapa.id === 'jungle') adicionarObjetosJungle(grupoArena, ARENA, loaderOBJ, loaderMTL);
-        if (mapa.id === 'gelo') adicionarObjetosGelo(grupoArena, ARENA, loaderGlobal);
 
         // Player 1 — vehicle picked in the Garage. Player 2 stays as the
         // hover-skate counterpart so the split-screen multiplayer still works.
@@ -302,42 +297,12 @@ function buildGame() {
         if (e.key === 'v' || e.key === 'V') { modoCamara = 'terceiraPessoa'; aplicarModoCamara(); }
         if (e.key === 'b' || e.key === 'B') { modoCamara = 'topo'; aplicarModoCamara(); }
         if (e.key === 'Escape') { backToMenu(); }
-        if (e.key === '1') { if (luzes) toggleLuz(luzes, 'ambiente'); atualizarHUDLuzes(); }
-        if (e.key === '2') { if (luzes) toggleLuz(luzes, 'direcional'); atualizarHUDLuzes(); }
-        if (e.key === '3') { if (luzes) toggleLuz(luzes, 'pontoArena'); atualizarHUDLuzes(); }
-        if (e.key === '4') { if (luzes) toggleLuz(luzes, 'pontoMota1'); atualizarHUDLuzes(); }
-        if (e.key === '5') { if (luzes) toggleLuz(luzes, 'pontoMota2'); atualizarHUDLuzes(); }
     });
-
-    function atualizarHUDLuzes() {
-        if (!luzes) return;
-        var hud = document.getElementById('hud-luzes');
-        if (!hud) return;
-        var entradas = [
-            { id: 'hud-l1', chave: 'ambiente', label: '[1] Ambiente' },
-            { id: 'hud-l2', chave: 'direcional', label: '[2] Direcional' },
-            { id: 'hud-l3', chave: 'pontoArena', label: '[3] Arena' },
-            { id: 'hud-l4', chave: 'pontoMota1', label: '[4] Mota' },
-            { id: 'hud-l5', chave: 'pontoMota2', label: '[5] Skate' },
-        ];
-        entradas.forEach(function (e) {
-            var span = document.getElementById(e.id);
-            if (!span) return;
-            var on = luzes[e.chave].visible;
-            span.textContent = e.label + ': ' + (on ? 'ON' : 'OFF');
-            span.style.color = on ? '#00ffcc' : '#666688';
-            span.style.padding = '2px 6px';
-            span.style.background = 'rgba(0,0,0,0.55)';
-            span.style.borderRadius = '3px';
-            span.style.border = on ? '1px solid #00ffcc44' : '1px solid #33335544';
-        });
-    }
 
     function update(delta) {
         atualizarSpace(delta);
         atualizarDeserto(delta);
         atualizarJungle(delta);
-        atualizarGelo(delta);
         atualizarSkate(delta);
         atualizarSpeeder(delta);
         atualizarGlider(delta);

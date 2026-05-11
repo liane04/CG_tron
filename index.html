@@ -28,19 +28,6 @@
             display: none;
         }
 
-        #hud-luzes {
-            position: fixed;
-            bottom: 12px;
-            left: 50%;
-            transform: translateX(-50%);
-            display: none;
-            gap: 8px;
-            font-family: 'Courier New', monospace;
-            font-size: 12px;
-            pointer-events: none;
-            z-index: 100;
-        }
-
         /* Loader simples até o módulo principal arrancar */
         #boot {
             position: absolute;
@@ -91,14 +78,6 @@
     <!-- HUD durante o jogo -->
     <div id="info">
         [V] 3ª Pessoa &nbsp; [B] Topo &nbsp; [C] Alternar &nbsp; [ESC] Menu
-    </div>
-
-    <div id="hud-luzes">
-        <span id="hud-l1"></span>
-        <span id="hud-l2"></span>
-        <span id="hud-l3"></span>
-        <span id="hud-l4"></span>
-        <span id="hud-l5"></span>
     </div>
 
     <script src="./js/main.js" type="module"></script>

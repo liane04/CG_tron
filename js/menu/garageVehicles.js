@@ -72,8 +72,8 @@ export var VEHICLES = [
 
 export var TRAILS = [
     { id: 'wireframe', name: 'NEON GRID',  description: 'Muro 3D Wireframe' },
-    { id: 'solid',     name: 'SOLID WALL', description: 'Muro 3D Sólido' },
     { id: 'cubes',     name: 'DATA STREAM',description: 'Cubos Flutuantes' },
+    { id: 'glitch',    name: 'CYBER GLITCH',description: 'Estilhaços de Realidade' },
     { id: 'ribbon',    name: 'CLASSIC',    description: 'Trilho 2D Plano' }
 ];
 

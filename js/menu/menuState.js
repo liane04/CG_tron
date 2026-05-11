@@ -43,32 +43,7 @@ function goToState(next, opts) {
         if (prev === STATES.TRACK_SELECT)  hideTrackSelect();
     };
 
-    if (next === STATES.SPLASH) {
-        showSplash();
-        setHoverables([]);
-        setActiveHandler(splashHandler);
-        moveTo('SPLASH', { onComplete: hideAfter });
-    } else if (next === STATES.MAIN) {
-        showMainMenu();
-        setHoverables(getMainMenuHoverables());
-        setActiveHandler(mainHandler);
-        moveTo('MAIN', { onComplete: hideAfter });
-    } else if (next === STATES.GARAGE) {
-        showGarage(settings.garage);
-        setHoverables(getGarageHoverables());
-        setActiveHandler(garageHandler);
-        moveTo('GARAGE', { onComplete: hideAfter });
-    } else if (next === STATES.SETTINGS) {
-        showSettings();
-        setHoverables([]);
-        setActiveHandler(settingsHandler);
-        moveTo('SETTINGS', { onComplete: hideAfter });
-    } else if (next === STATES.TRACK_SELECT) {
-        showTrackSelect(settings.track);
-        setHoverables(getTrackSelectHoverables());
-        setActiveHandler(trackSelectHandler);
-        moveTo('TRACK_SELECT', { onComplete: hideAfter });
-    } else if (next === STATES.GAME) {
+    if (next === STATES.GAME) {
         clearHoverables();
         setActiveHandler(null);
         moveTo('GAME_HANDOFF', {
@@ -78,6 +53,35 @@ function goToState(next, opts) {
                 if (onStartGame) onStartGame(settings);
             }
         });
+    } else {
+        hideAfter();
+
+        if (next === STATES.SPLASH) {
+            showSplash();
+            setHoverables([]);
+            setActiveHandler(splashHandler);
+            moveTo('SPLASH');
+        } else if (next === STATES.MAIN) {
+            showMainMenu();
+            setHoverables(getMainMenuHoverables());
+            setActiveHandler(mainHandler);
+            moveTo('MAIN');
+        } else if (next === STATES.GARAGE) {
+            showGarage(settings.garage);
+            setHoverables(getGarageHoverables());
+            setActiveHandler(garageHandler);
+            moveTo('GARAGE');
+        } else if (next === STATES.SETTINGS) {
+            showSettings();
+            setHoverables([]);
+            setActiveHandler(settingsHandler);
+            moveTo('SETTINGS');
+        } else if (next === STATES.TRACK_SELECT) {
+            showTrackSelect(settings.track);
+            setHoverables(getTrackSelectHoverables());
+            setActiveHandler(trackSelectHandler);
+            moveTo('TRACK_SELECT');
+        }
     }
 }
 
@@ -97,9 +101,6 @@ export function initMenuState(initialSettings, opts) {
             if (id === 'play')     goToState(STATES.TRACK_SELECT);
             if (id === 'garage')   goToState(STATES.GARAGE);
             if (id === 'settings') goToState(STATES.SETTINGS);
-            if (id === 'records')  {
-                console.info('[menu] RECORDS screen not implemented');
-            }
         },
         onBack: function () { goToState(STATES.SPLASH); }
     });

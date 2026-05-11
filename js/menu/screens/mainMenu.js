@@ -9,8 +9,7 @@ import { sfxNavigate, sfxConfirm, sfxBack } from '../../audioManager.js';
 var OPTIONS = [
     { id: 'play',     label: 'PLAY',     color: 0x00eaff, hint: 'INICIAR  CORRIDA',     icon: '>' },
     { id: 'garage',   label: 'GARAGE',   color: 0xff2bd6, hint: 'PERSONALIZAR  VEICULO', icon: '#' },
-    { id: 'settings', label: 'SETTINGS', color: 0xffe46b, hint: 'CONFIGURACOES',         icon: '*' },
-    { id: 'records',  label: 'RECORDS',  color: 0x59ff7c, hint: 'RECORDES  LOCAIS',      icon: '^' }
+    { id: 'settings', label: 'SETTINGS', color: 0xffe46b, hint: 'CONFIGURACOES',         icon: '*' }
 ];
 
 var group = null;

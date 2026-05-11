@@ -11,7 +11,6 @@ import { criarArena } from './arena.js';
 import { criarMota } from './mota.js';
 import { criarSkate, atualizarSkate, destruirSkate } from './skate.js';
 import { criarSpeeder, atualizarSpeeder } from './speeder.js';
-import { criarGlider, atualizarGlider } from './glider.js';
 import { inicializarInput, atualizarMotas, definirObstaculos, definirIAJ1Ativa, definirIAJ2Ativa } from './input.js';
 import { criarLuzes } from './luzes.js';
 import { mapas } from './mapas.js';
@@ -187,7 +186,6 @@ function buildGame() {
         if (id === 'mota') return criarMota(color);
         if (id === 'skate') return criarSkate(color);
         if (id === 'speeder') return criarSpeeder(color);
-        if (id === 'glider') return criarGlider(color);
         return criarMota(color);
     }
 
@@ -305,7 +303,6 @@ function buildGame() {
         atualizarJungle(delta);
         atualizarSkate(delta);
         atualizarSpeeder(delta);
-        atualizarGlider(delta);
         atualizarIA(delta);
         atualizarMotas(delta);
         atualizarGameLogic(delta);

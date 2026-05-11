@@ -5,7 +5,6 @@ import * as THREE from 'three';
 import { criarMota } from '../mota.js';
 import { criarSkate } from '../skate.js';
 import { criarSpeeder } from '../speeder.js';
-import { criarGlider } from '../glider.js';
 
 export var COLORS = [
     { id: 'cyan',    name: 'CYBER CYAN',    hex: 0x00eaff, finish: 'metallic' },
@@ -52,17 +51,6 @@ export var VEHICLES = [
         stats: { speed: 0.95, acceleration: 0.7, handling: 0.6 },
         build: function (color) {
             var v = criarSpeeder(color.hex);
-            v.scale.multiplyScalar(1.6);
-            return v;
-        },
-        podiumOffsetY: 0
-    },
-    {
-        id: 'glider',
-        name: 'GLIDER V9',
-        stats: { speed: 0.8, acceleration: 0.95, handling: 0.55 },
-        build: function (color) {
-            var v = criarGlider(color.hex);
             v.scale.multiplyScalar(1.6);
             return v;
         },

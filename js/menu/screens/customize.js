@@ -56,24 +56,24 @@ export function buildCustomize(scene) {
 
     // Palette on Left (Spheres like before)
     var colorPanel = buildColorPanel();
-    colorPanel.position.set(-6, 1.5, 0);
+    colorPanel.position.set(-6, 2.5, 0);
     group.add(colorPanel);
 
     colorNameLabel = makeTextPlane(COLORS[0].name, {
-        fontSize: 44, color: '#ffffff', glowColor: '#00eaff', worldHeight: 0.20
+        fontSize: 70, color: '#ffffff', glowColor: '#00eaff', worldHeight: 0.4
     });
-    colorNameLabel.position.set(-6, -1.3, 0);
+    colorNameLabel.position.set(-6, 0.1, 0);
     group.add(colorNameLabel);
 
     // Trails on Right
     var trailPanel = buildTrailPanel();
-    trailPanel.position.set(6, 1.5, 0);
+    trailPanel.position.set(6, 2.5, 0);
     group.add(trailPanel);
 
     trailNameLabel = makeTextPlane(TRAILS[0].name, {
-        fontSize: 44, color: '#ffffff', glowColor: '#00eaff', worldHeight: 0.20
+        fontSize: 70, color: '#ffffff', glowColor: '#00eaff', worldHeight: 0.4
     });
-    trailNameLabel.position.set(6, -1.3, 0);
+    trailNameLabel.position.set(6, 0.1, 0);
     group.add(trailNameLabel);
 
     // Confirm Button
@@ -199,13 +199,13 @@ function rebuildPreview() {
     
     if (colorNameLabel) {
         updateTextPlane(colorNameLabel, color.name, {
-            fontSize: 44, color: '#ffffff', glowColor: '#' + color.hex.toString(16).padStart(6, '0'),
-            worldHeight: 0.20
+            fontSize: 70, color: '#ffffff', glowColor: '#' + color.hex.toString(16).padStart(6, '0'),
+            worldHeight: 0.4
         });
     }
     if (trailNameLabel) {
         updateTextPlane(trailNameLabel, TRAILS[currentTrailIndex].name, {
-            fontSize: 44, color: '#ffffff', glowColor: '#00eaff', worldHeight: 0.20
+            fontSize: 70, color: '#ffffff', glowColor: '#00eaff', worldHeight: 0.4
         });
     }
 
@@ -235,10 +235,11 @@ export function updateCustomize(dt) {
         currentTrail.mesh.position.x -= distToMove;
         
         // Calculate vehicle's local position in the trail group's space
-        var localPos = new THREE.Vector3(-currentTrail.mesh.position.x, 0, 0);
+        // We add an offset of -1.8 on X because the vehicle is rotated 90deg (facing +X)
+        var localPos = new THREE.Vector3(-currentTrail.mesh.position.x - 1.8, 0, 0);
         
         adicionarPonto(currentTrail, localPos);
-        atualizarTrail(currentTrail, dt);
+        atualizarTrail(currentTrail, dt, null);
     }
 
     // Floating effect for vehicle

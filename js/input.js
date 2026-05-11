@@ -146,14 +146,8 @@ export function definirObstaculos(grupoArena) {
     coletar(grupoArena);
 }
 
-/**
- * Verifica colisão OBB (veículo) vs AABB (obstáculo) usando SAT simplificado.
- */
-function colideComObstaculo(veiculo, hw, hl) {
-    var pos = veiculo.position;
-    var rot = veiculo.rotation.y;
-
-    // Eixos locais do veículo (direções X e Z no mundo)
+export function colideComObstaculo(posicao, rot, hw, hl) {
+    // Eixos locais (direções X e Z no mundo)
     var ax = Math.cos(rot);
     var az = Math.sin(rot);
 
@@ -161,7 +155,7 @@ function colideComObstaculo(veiculo, hw, hl) {
         var box = obstaculos[i];
         
         // Check rápido de altura
-        if (pos.y > box.max.y || pos.y + 1.2 < box.min.y) continue;
+        if (posicao.y > box.max.y || posicao.y + 1.2 < box.min.y) continue;
 
         // Centro do obstáculo e meia-extensão (AABB)
         var ox = (box.min.x + box.max.x) / 2;
@@ -170,15 +164,13 @@ function colideComObstaculo(veiculo, hw, hl) {
         var ohl = (box.max.z - box.min.z) / 2;
 
         // Vetor centro a centro
-        var dx = pos.x - ox;
-        var dz = pos.z - oz;
+        var dx = posicao.x - ox;
+        var dz = posicao.z - oz;
 
         // SAT: Testar nos eixos do obstáculo (Mundo X e Z)
-        // Eixo X
         var projL = hw * Math.abs(ax) + hl * Math.abs(az);
         if (Math.abs(dx) > ohw + projL) continue;
         
-        // Eixo Z
         var projLz = hw * Math.abs(az) + hl * Math.abs(ax);
         if (Math.abs(dz) > ohl + projLz) continue;
 
@@ -186,14 +178,14 @@ function colideComObstaculo(veiculo, hw, hl) {
         // Eixo Forward (Z local)
         var s = -Math.sin(rot), c = -Math.cos(rot);
         var distF = Math.abs(dx * s + dz * c);
-        var projO = ohw * Math.abs(s) + ohl * Math.abs(c);
-        if (distF > hl + projO) continue;
+        var projO_F = ohw * Math.abs(s) + ohl * Math.abs(c);
+        if (distF > hl + projO_F) continue;
 
         // Eixo Side (X local)
-        var sx = Math.cos(rot), sz = -Math.sin(rot);
+        var sx = Math.cos(rot), sz = Math.sin(rot);
         var distS = Math.abs(dx * sx + dz * sz);
-        var projOs = ohw * Math.abs(sx) + ohl * Math.abs(sz);
-        if (distS > hw + projOs) continue;
+        var projO_S = ohw * Math.abs(sx) + ohl * Math.abs(sz);
+        if (distS > hw + projO_S) continue;
 
         return true;
     }
@@ -227,14 +219,14 @@ function atualizarJogador(veiculo, estado, fonteTeclas, teclaEsq, teclaDir, hw, 
     // Colisão com obstáculos da arena — qualquer contacto é letal.
     // Tenta encostar o veículo ao limite (sliding) antes de disparar a morte
     // para que a posição da explosão seja coerente com o local do impacto.
-    if (obstaculos.length > 0 && colideComObstaculo(veiculo, hw, hl)) {
+    if (obstaculos.length > 0 && colideComObstaculo(veiculo.position, veiculo.rotation.y, hw, hl)) {
         var newX = veiculo.position.x;
         var newZ = veiculo.position.z;
         veiculo.position.x = prevX;
-        if (colideComObstaculo(veiculo, hw, hl)) {
+        if (colideComObstaculo(veiculo.position, veiculo.rotation.y, hw, hl)) {
             veiculo.position.x = newX;
             veiculo.position.z = prevZ;
-            if (colideComObstaculo(veiculo, hw, hl)) {
+            if (colideComObstaculo(veiculo.position, veiculo.rotation.y, hw, hl)) {
                 veiculo.position.x = prevX;
                 veiculo.position.z = prevZ;
             }

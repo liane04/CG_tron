@@ -399,8 +399,9 @@ function obterOverlay() {
 
 function mostrarResultado(venceuId) {
     var ov = obterOverlay();
-    var texto = venceuId === 2 ? 'PLAYER WINS' : 'AI WINS';
-    var corHex = venceuId === 2 ? '#00eaff' : '#ff2bd6';
+    // No setup atual: J1 = Humano (Cyan), J2 = IA (Magenta)
+    var texto = venceuId === 1 ? 'PLAYER WINS' : 'AI WINS';
+    var corHex = venceuId === 1 ? '#00eaff' : '#ff2bd6';
     var titulo = ov.firstChild;
     titulo.textContent = texto;
     titulo.style.color = corHex;

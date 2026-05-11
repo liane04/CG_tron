@@ -141,6 +141,47 @@ export function atualizarSpace(delta) {
                 }
                 particulas.geometry.attributes.position.needsUpdate = true;
             }
+
+            // 3. Movimentação do Drone (Evitar Pilares)
+            // Aumentamos o ângulo para o movimento circular
+            grupoAnimacao.userData.angulo += 0.2 * delta;
+            const ang = grupoAnimacao.userData.angulo;
+            
+            // Posição alvo base (um círculo largo com variação em '8')
+            let tx = Math.cos(ang) * 42; 
+            let tz = Math.sin(ang * 0.5) * 35;
+            
+            // Lista de centros dos pilares ADN para evitar
+            const centrosPilares = [
+                { x: 18, z: 18 }, { x: -18, z: 18 },
+                { x: 18, z: -18 }, { x: -18, z: -18 }
+            ];
+
+            const margemSegura = 10; // Raio de exclusão do laser em relação ao centro do pilar
+            
+            centrosPilares.forEach(pilar => {
+                const dx = tx - pilar.x;
+                const dz = tz - pilar.z;
+                const distSq = dx * dx + dz * dz;
+                if (distSq < margemSegura * margemSegura) {
+                    const dist = Math.sqrt(distSq);
+                    const forca = (margemSegura - dist) / dist;
+                    tx += dx * forca;
+                    tz += dz * forca;
+                }
+            });
+
+            // Suavizar o movimento do drone para a nova posição
+            grupoAnimacao.position.x = THREE.MathUtils.lerp(grupoAnimacao.position.x, tx, 0.05);
+            grupoAnimacao.position.z = THREE.MathUtils.lerp(grupoAnimacao.position.z, tz, 0.05);
+            
+            // Inclinação apenas do corpo (nucleo + minidrones)
+            // O feixe de laser (aura e particulas) mantém-se vertical
+            const corpo = grupoAnimacao.userData.corpoTilt;
+            if (corpo) {
+                corpo.rotation.z = (grupoAnimacao.position.x - tx) * 0.1;
+                corpo.rotation.x = (grupoAnimacao.position.z - tz) * 0.1;
+            }
         }
         
     });
@@ -547,7 +588,11 @@ function criarDroneVigia(posicao) {
     geoNucleo.setAttribute('position', new THREE.Float32BufferAttribute(posicoes, 3));
     geoNucleo.computeVertexNormals();
     const nucleo = new THREE.Mesh(geoNucleo, matNucleo);
-    drone.add(nucleo);
+    
+    // Novo subgrupo para inclinar apenas o corpo, mantendo o laser vertical
+    const corpoTilt = new THREE.Group();
+    corpoTilt.add(nucleo);
+    drone.add(corpoTilt);
 
     // 1.1 Contornos Neon Extra Brilhantes
     const matNeonBrilhante = new THREE.MeshStandardMaterial({
@@ -614,7 +659,7 @@ function criarDroneVigia(posicao) {
     // Inclinar o grupo inteiro para a órbita não ser "plana"
     grupoMiniDrones.rotation.x = 0.4;
     grupoMiniDrones.rotation.z = 0.2;
-    drone.add(grupoMiniDrones);
+    corpoTilt.add(grupoMiniDrones); // Adicionado ao corpoTilt em vez do drone diretamente
 
     // 3. O FEIXE DE LASER ANIMADO (Núcleo + Aura + Partículas)
     const alturaLaser = 70;
@@ -685,9 +730,13 @@ function criarDroneVigia(posicao) {
 
     // Configurar para animação
     drone.userData.tipo = 'drone';
+    drone.userData.corpoTilt = corpoTilt;
     drone.userData.miniDrones = grupoMiniDrones;
     drone.userData.aura = aura;
     drone.userData.particulas = particulas;
+    drone.userData.angulo = Math.random() * Math.PI * 2; // Ponto de partida aleatório
+    drone.userData.centro = new THREE.Vector3(0, 35, 0); // Altura fixa de 35
+    
     blocosOrbitais.push(drone);
 
     return drone;

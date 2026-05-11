@@ -31,6 +31,14 @@ var settings = null;
 var onStartGame = null;
 // What to do once a track is picked. We send the user straight to the game.
 var pendingAfterTrackSelect = null;
+// Qual jogador está a ser configurado no fluxo de personalização.
+//   null  → fluxo single-player (AI) ou acesso direto à garagem do menu (sem label)
+//   1 / 2 → fluxo 1v1, cada jogador escolhe a sua mota/cor/rasto sequencialmente
+var customizingPlayer = null;
+
+function garageForPlayer(p) {
+    return p === 2 ? settings.garage2 : settings.garage;
+}
 
 function clearHoverables() { setHoverables([]); }
 
@@ -73,7 +81,7 @@ function goToState(next, opts) {
             setActiveHandler(mainHandler);
             moveTo('MAIN');
         } else if (next === STATES.GARAGE) {
-            showGarage(settings.garage);
+            showGarage(garageForPlayer(customizingPlayer), customizingPlayer);
             setHoverables(getGarageHoverables());
             setActiveHandler(garageHandler);
             moveTo('GARAGE');
@@ -88,7 +96,7 @@ function goToState(next, opts) {
             setActiveHandler(trackSelectHandler);
             moveTo('TRACK_SELECT');
         } else if (next === STATES.CUSTOMIZE) {
-            showCustomize(settings.garage);
+            showCustomize(garageForPlayer(customizingPlayer), customizingPlayer);
             setHoverables(getCustomizeHoverables());
             setActiveHandler(customizeHandler);
             moveTo('CUSTOMIZE');
@@ -115,7 +123,7 @@ export function initMenuState(initialSettings, opts) {
     mainHandler = getMainMenuHandler({
         onSelect: function (id) {
             if (id === 'play')     goToState(STATES.MODE_SELECT);
-            if (id === 'garage')   goToState(STATES.GARAGE);
+            if (id === 'garage')   { customizingPlayer = null; goToState(STATES.GARAGE); }
             if (id === 'settings') goToState(STATES.SETTINGS);
         },
         onBack: function () { goToState(STATES.SPLASH); }
@@ -125,6 +133,8 @@ export function initMenuState(initialSettings, opts) {
         onConfirm: function (selection) {
             settings.gameMode = selection.modeId;
             saveSettings(settings);
+            // No 1v1 o P1 é o primeiro a configurar; no AI mantemos null (sem label)
+            customizingPlayer = (selection.modeId === 'local1v1') ? 1 : null;
             goToState(STATES.GARAGE);
         },
         onBack: function () { goToState(STATES.MAIN); }
@@ -132,25 +142,41 @@ export function initMenuState(initialSettings, opts) {
 
     garageHandler = getGarageHandler({
         onConfirm: function (selection) {
-            settings.garage.vehicleId = selection.vehicleId;
+            garageForPlayer(customizingPlayer).vehicleId = selection.vehicleId;
             saveSettings(settings);
             goToState(STATES.CUSTOMIZE);
         },
         onBack: function () {
-            goToState(STATES.MODE_SELECT);
+            // No 1v1 e a meio do P2, voltar para a personalização do P1
+            if (customizingPlayer === 2) {
+                customizingPlayer = 1;
+                goToState(STATES.CUSTOMIZE);
+            } else if (customizingPlayer === 1) {
+                goToState(STATES.MODE_SELECT);
+            } else {
+                goToState(STATES.MAIN);
+            }
         }
     });
 
     customizeHandler = getCustomizeHandler({
         onConfirm: function (selection) {
-            settings.garage.colorId = selection.colorId;
-            settings.garage.trailId = selection.trailId;
+            var g = garageForPlayer(customizingPlayer);
+            g.colorId = selection.colorId;
+            g.trailId = selection.trailId;
             saveSettings(settings);
-            goToState(STATES.TRACK_SELECT);
+            // No 1v1, após o P1 segue-se a Garage do P2
+            if (settings.gameMode === 'local1v1' && customizingPlayer === 1) {
+                customizingPlayer = 2;
+                goToState(STATES.GARAGE);
+            } else {
+                goToState(STATES.TRACK_SELECT);
+            }
         },
         onBack: function (selection) {
-            settings.garage.colorId = selection.colorId;
-            settings.garage.trailId = selection.trailId;
+            var g = garageForPlayer(customizingPlayer);
+            g.colorId = selection.colorId;
+            g.trailId = selection.trailId;
             saveSettings(settings);
             goToState(STATES.GARAGE);
         }

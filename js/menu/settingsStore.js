@@ -20,6 +20,11 @@ var defaults = {
         colorId: 'cyan',
         trailId: 'wireframe'
     },
+    garage2: {                     // Personalização do P2 (usada apenas no modo local1v1)
+        vehicleId: 'skate',
+        colorId: 'magenta',
+        trailId: 'wireframe'
+    },
     track: {
         mapId: 'space'
     },

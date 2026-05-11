@@ -16,6 +16,7 @@ var currentVehicleIndex = 0;
 var t = 0;
 
 var nameLabel = null;
+var playerLabel = null;        // "PLAYER 1" / "PLAYER 2" — só visível no fluxo 1v1
 var statBars = [];
 var confirmBtn = null;
 var hintLabel = null;
@@ -132,6 +133,11 @@ export function buildGarage(scene) {
     title.position.set(0, 5, 0);
     group.add(title);
 
+    playerLabel = makeTextPlane('PLAYER 1', { fontSize: 72, color: '#ffffff', glowColor: '#00eaff', worldHeight: 0.42, weight: '900' });
+    playerLabel.position.set(0, 4.55, 0);
+    playerLabel.visible = false;
+    group.add(playerLabel);
+
     nameLabel = makeTextPlane("<  " + VEHICLES[0].name + "  >", { fontSize: 80, color: '#ffffff', worldHeight: 0.5 });
     nameLabel.position.set(0, 4, 0);
     group.add(nameLabel);
@@ -160,11 +166,22 @@ export function buildGarage(scene) {
     group.add(hintLabel);
 }
 
-export function showGarage(initial) {
+export function showGarage(initial, playerNum) {
     group.visible = true;
     if (initial) {
         var idx = VEHICLES.findIndex(v => v.id === initial.vehicleId);
         if (idx >= 0) currentVehicleIndex = idx;
+    }
+    if (playerLabel) {
+        if (playerNum === 1 || playerNum === 2) {
+            var glow = playerNum === 1 ? '#00eaff' : '#ff2bd6';
+            updateTextPlane(playerLabel, 'PLAYER ' + playerNum, {
+                fontSize: 72, color: '#ffffff', glowColor: glow, worldHeight: 0.42, weight: '900'
+            });
+            playerLabel.visible = true;
+        } else {
+            playerLabel.visible = false;
+        }
     }
     rebuildVehicleMesh();
     setVehicleStats(VEHICLES[currentVehicleIndex]);

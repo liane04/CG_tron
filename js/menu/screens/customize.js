@@ -22,6 +22,7 @@ var currentColorIndex = 0;
 var currentTrailIndex = 0;
 
 var titleLabel = null;
+var playerLabel = null;        // "PLAYER 1" / "PLAYER 2" — só visível no fluxo 1v1
 var colorNameLabel = null;
 var trailNameLabel = null;
 var confirmBtn = null;
@@ -45,6 +46,13 @@ export function buildCustomize(scene) {
     });
     titleLabel.position.set(0, 5, 0);
     group.add(titleLabel);
+
+    playerLabel = makeTextPlane('PLAYER 1', {
+        fontSize: 72, color: '#ffffff', glowColor: '#00eaff', worldHeight: 0.42, weight: '900'
+    });
+    playerLabel.position.set(0, 4.3, 0);
+    playerLabel.visible = false;
+    group.add(playerLabel);
 
     // Palette on Left (Spheres like before)
     var colorPanel = buildColorPanel();
@@ -133,7 +141,7 @@ function buildTrailPanel() {
     return p;
 }
 
-export function showCustomize(garageSettings) {
+export function showCustomize(garageSettings, playerNum) {
     vehicleId = garageSettings.vehicleId;
     colorId = garageSettings.colorId;
     trailId = garageSettings.trailId;
@@ -142,6 +150,18 @@ export function showCustomize(garageSettings) {
     currentTrailIndex = TRAILS.findIndex(t => t.id === trailId);
     if (currentColorIndex < 0) currentColorIndex = 0;
     if (currentTrailIndex < 0) currentTrailIndex = 0;
+
+    if (playerLabel) {
+        if (playerNum === 1 || playerNum === 2) {
+            var glow = playerNum === 1 ? '#00eaff' : '#ff2bd6';
+            updateTextPlane(playerLabel, 'PLAYER ' + playerNum, {
+                fontSize: 72, color: '#ffffff', glowColor: glow, worldHeight: 0.42, weight: '900'
+            });
+            playerLabel.visible = true;
+        } else {
+            playerLabel.visible = false;
+        }
+    }
 
     group.visible = true;
     rebuildPreview();

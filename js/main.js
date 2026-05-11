@@ -65,7 +65,7 @@ function start() {
             var pickedMap = mapas.find(function (m) { return m.id === mapId; }) || mapas[0];
             ensureGameInitialised();
             var gameMode = settings.gameMode || 'ai';
-            gameApi.startWithMap(pickedMap, settings.garage || null, gameMode);
+            gameApi.startWithMap(pickedMap, settings.garage || null, gameMode, settings.garage2 || null);
             playMapMusic(pickedMap.id);
             appMode = 'game';
             var info = document.getElementById('info');
@@ -185,12 +185,12 @@ function buildGame() {
         green: 0x59ff7c, purple: 0x9438ff, red: 0xff2244
     };
 
-    function resolverCorP1(garage) {
-        return (garage && COLOR_HEX[garage.colorId]) || 0x00ffff;
+    function resolverCor(garage, fallback) {
+        return (garage && COLOR_HEX[garage.colorId]) || fallback;
     }
 
-    function buildPlayer1(garage) {
-        var color = resolverCorP1(garage);
+    function buildVehicle(garage, fallbackColor) {
+        var color = resolverCor(garage, fallbackColor);
         var id = (garage && garage.vehicleId) || 'mota';
         if (id === 'mota') return criarMota(color);
         if (id === 'skate') return criarSkate(color);
@@ -198,7 +198,7 @@ function buildGame() {
         return criarMota(color);
     }
 
-    function startWithMap(mapa, garage, gameMode) {
+    function startWithMap(mapa, garage, gameMode, garage2) {
         modoJogoAtual = gameMode || 'ai';
         if (grupoArena) { cena.remove(grupoArena); grupoArena = null; }
         if (motaJogador1) { cena.remove(motaJogador1); motaJogador1 = null; }
@@ -221,18 +221,19 @@ function buildGame() {
         if (mapa.id === 'deserto') adicionarObjetosDeserto(grupoArena, ARENA, loaderGlobal, mapa, loaderGLTF);
         if (mapa.id === 'jungle') adicionarObjetosJungle(grupoArena, ARENA, loaderOBJ, loaderMTL);
 
-        // Player 1 — vehicle picked in the Garage. Player 2 stays as the
-        // hover-skate counterpart so the split-screen multiplayer still works.
-        var corP1 = resolverCorP1(garage);
-        var corP2 = COR_SKATE_J2;
+        // Player 1 — escolhido na Garage/Customize. Player 2 só usa garage2 no
+        // modo local1v1; em single-player fica como skate magenta por defeito.
+        var corP1 = resolverCor(garage, 0x00ffff);
+        var ehDuelo = (modoJogoAtual === 'local1v1');
+        var corP2 = ehDuelo ? resolverCor(garage2, COR_SKATE_J2) : COR_SKATE_J2;
 
-        motaJogador1 = buildPlayer1(garage);
+        motaJogador1 = buildVehicle(garage, 0x00ffff);
         motaJogador1.position.set(-5, 0, 0);
         motaJogador1.rotation.y = 0;
         cena.add(motaJogador1);
         if (luzes.pontoMota1) luzes.pontoMota1.color.set(corP1);
 
-        skateJogador2 = criarSkate(corP2);
+        skateJogador2 = ehDuelo ? buildVehicle(garage2, COR_SKATE_J2) : criarSkate(corP2);
         skateJogador2.position.set(5, 0, 0);
         skateJogador2.rotation.y = Math.PI;
         cena.add(skateJogador2);
@@ -241,9 +242,12 @@ function buildGame() {
         inicializarInput(motaJogador1, skateJogador2, ARENA);
         definirObstaculos(grupoArena);
 
-        // Trails — cor sincronizada com a do veículo correspondente
-        trailMota = criarTrail(corP1, 300, garage.trailId);
-        trailSkate = criarTrail(corP2, 300, garage.trailId);
+        // Trails — cor sincronizada com a do veículo correspondente. No 1v1
+        // o P2 usa o rasto escolhido em garage2; no AI usa o mesmo do P1.
+        var trailIdP1 = garage && garage.trailId;
+        var trailIdP2 = (ehDuelo && garage2 && garage2.trailId) ? garage2.trailId : trailIdP1;
+        trailMota = criarTrail(corP1, 300, trailIdP1);
+        trailSkate = criarTrail(corP2, 300, trailIdP2);
         cena.add(trailMota.mesh);
         cena.add(trailSkate.mesh);
 

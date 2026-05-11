@@ -123,10 +123,14 @@ export function atualizarGameLogic(delta) {
 
     // Adicionar pontos de trail enquanto vivos
     if (estado.activos[1] && estado.motaRef) {
-        adicionarPonto(estado.trailMota, estado.motaRef.position);
+        const offset = new THREE.Vector3(0, 0, 1.8).applyQuaternion(estado.motaRef.quaternion);
+        const posTrail = estado.motaRef.position.clone().add(offset);
+        adicionarPonto(estado.trailMota, posTrail);
     }
     if (estado.activos[2] && estado.skateRef) {
-        adicionarPonto(estado.trailSkate, estado.skateRef.position);
+        const offset = new THREE.Vector3(0, 0, 1.2).applyQuaternion(estado.skateRef.quaternion);
+        const posTrail = estado.skateRef.position.clone().add(offset);
+        adicionarPonto(estado.trailSkate, posTrail);
     }
 
     // Detectar colisões trail

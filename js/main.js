@@ -332,8 +332,8 @@ function buildGame() {
         modoCamaraAnterior = modoCamara;
 
         // --- ANIMAÇÃO DE ENERGIA INSTÁVEL (Tremor e Pulso nos Trails) ---
-        if (trailMota)  atualizarTrail(trailMota, delta);
-        if (trailSkate) atualizarTrail(trailSkate, delta);
+        if (trailMota)  atualizarTrail(trailMota, delta, camaraAtiva);
+        if (trailSkate) atualizarTrail(trailSkate, delta, camaraAtiva);
     }
 
     function render() { renderer.render(cena, camaraAtiva); }

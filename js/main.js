@@ -12,7 +12,7 @@ import { criarMota } from './mota.js';
 import { criarSkate, atualizarSkate, destruirSkate } from './skate.js';
 import { criarSpeeder, atualizarSpeeder } from './speeder.js';
 import { criarGlider, atualizarGlider } from './glider.js';
-import { inicializarInput, atualizarMotas, definirObstaculos, definirIAJ1Ativa } from './input.js';
+import { inicializarInput, atualizarMotas, definirObstaculos, definirIAJ1Ativa, definirIAJ2Ativa } from './input.js';
 import { criarLuzes, toggleLuz } from './luzes.js';
 import { mapas } from './mapas.js';
 import { criarTrail, destruirTrail } from './trail.js';
@@ -244,9 +244,10 @@ function buildGame() {
         cena.add(trailMota.mesh);
         cena.add(trailSkate.mesh);
 
-        // IA controla a mota
-        definirIAJ1Ativa(true);
-        inicializarIA(motaJogador1, trailMota, trailSkate, ARENA / 2);
+        // IA controla o skate (Jogador 2), o humano controla a Mota (Jogador 1)
+        definirIAJ1Ativa(false);
+        definirIAJ2Ativa(true);
+        inicializarIA(skateJogador2, trailSkate, trailMota, ARENA / 2);
 
         // Configurar e arrancar a primeira ronda
         configurarGameLogic({

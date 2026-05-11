@@ -4,14 +4,15 @@ import * as THREE from 'three';
 var teclas = {};
 
 // --- Teclas sintéticas para a IA ---
-// Quando iaAtivaJ1 === true, o jogador 1 (mota) ignora ArrowLeft/ArrowRight
-// reais e lê apenas estas flags, escritas pelo módulo ai.js.
+// Quando iaAtiva === true, o jogador ignora as teclas reais e lê apenas as flags.
 var iaAtivaJ1 = false;
+var iaAtivaJ2 = false;
 var teclasIA_J1 = { esq: false, dir: false };
+var teclasIA_J2 = { esq: false, dir: false };
 
 // --- Referências aos veículos e respetivos estados físicos ---
 // Jogador 1 → mota (controlo: setas + Shift  ou  IA)
-// Jogador 2 → skate (controlo: WASD + Espaço)
+// Jogador 2 → skate (controlo: WASD + Espaço  ou  IA)
 var motaJ1 = null;
 var skateJ2 = null;
 var estadoJ1 = null;
@@ -87,6 +88,8 @@ export function inicializarInput(mota, skate, arena) {
     teclas = {};
     teclasIA_J1.esq = false;
     teclasIA_J1.dir = false;
+    teclasIA_J2.esq = false;
+    teclasIA_J2.dir = false;
     pausadoJ1 = false;
     pausadoJ2 = false;
 
@@ -98,6 +101,10 @@ export function inicializarInput(mota, skate, arena) {
 }
 
 function calcularRaioColisao(veiculo) {
+    var rotY = veiculo.rotation.y;
+    veiculo.rotation.y = 0;
+    veiculo.updateMatrixWorld(true);
+
     var box = new THREE.Box3().setFromObject(veiculo);
     var size = new THREE.Vector3();
     if (!box.isEmpty()) box.getSize(size);
@@ -207,7 +214,10 @@ export function atualizarMotas(delta) {
             aoColidirParedeJ1);
     }
     if (!pausadoJ2) {
-        atualizarJogador(skateJ2, estadoJ2, teclas, 'KeyA', 'KeyD', raioJ2, delta,
+        var fonteJ2 = iaAtivaJ2
+            ? { KeyA: teclasIA_J2.esq, KeyD: teclasIA_J2.dir }
+            : teclas;
+        atualizarJogador(skateJ2, estadoJ2, fonteJ2, 'KeyA', 'KeyD', raioJ2, delta,
             aoColidirParedeJ2);
     }
 }
@@ -222,9 +232,21 @@ export function definirIAJ1Ativa(ativa) {
     teclasIA_J1.dir = false;
 }
 
+export function definirIAJ2Ativa(ativa) {
+    iaAtivaJ2 = !!ativa;
+    teclasIA_J2.esq = false;
+    teclasIA_J2.dir = false;
+}
+
 export function escreverTeclasIA(esq, dir) {
-    teclasIA_J1.esq = !!esq;
-    teclasIA_J1.dir = !!dir;
+    if (iaAtivaJ1) {
+        teclasIA_J1.esq = !!esq;
+        teclasIA_J1.dir = !!dir;
+    }
+    if (iaAtivaJ2) {
+        teclasIA_J2.esq = !!esq;
+        teclasIA_J2.dir = !!dir;
+    }
 }
 
 export function pausarJogador(idx, pausado) {

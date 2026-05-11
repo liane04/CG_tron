@@ -2,13 +2,16 @@
 <html>
 <head>
     <title>NEON DRIVE</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         html, body {
             width: 100%; height: 100%;
             overflow: hidden;
             background: #000;
-            font-family: 'Courier New', monospace;
+            font-family: 'Share Tech Mono', 'Courier New', monospace;
         }
         canvas { display: block; }
 
@@ -45,13 +48,30 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            color: #ff2bd6;
-            font-size: 20px;
-            letter-spacing: 6px;
-            text-shadow: 0 0 8px #ff2bd6;
-            background: #05000d;
+            color: #00eaff;
+            font-family: 'Orbitron', 'Courier New', monospace;
+            font-weight: 900;
+            font-size: 28px;
+            letter-spacing: 10px;
+            text-shadow:
+                0 0 12px #00eaff,
+                0 0 24px #00eaff,
+                0 0 48px #ff2bd6;
+            background: radial-gradient(ellipse at center, #0a0420 0%, #02000a 70%);
             z-index: 200;
             transition: opacity 0.6s ease;
+        }
+        #boot::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background:
+                repeating-linear-gradient(0deg,
+                    rgba(0, 234, 255, 0.04) 0px,
+                    rgba(0, 234, 255, 0.04) 1px,
+                    transparent 1px,
+                    transparent 3px);
+            pointer-events: none;
         }
         #boot.oculto { opacity: 0; pointer-events: none; }
     </style>

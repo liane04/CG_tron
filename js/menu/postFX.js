@@ -103,9 +103,9 @@ export function resizePostFX(width, height) {
 
 export function setQuality(level) {
     if (!bloomPass) return;
-    if (level === 'low')    { bloomPass.strength = 0.18; bloomPass.radius = 0.3; if (crtPass) crtPass.uniforms.scanIntensity.value = 0.0; }
-    if (level === 'medium') { bloomPass.strength = 0.25; bloomPass.radius = 0.35; if (crtPass) crtPass.uniforms.scanIntensity.value = 0.04; }
-    if (level === 'high')   { bloomPass.strength = 0.32; bloomPass.radius = 0.4; if (crtPass) crtPass.uniforms.scanIntensity.value = 0.06; }
+    if (level === 'low')    { bloomPass.strength = 0.22; bloomPass.radius = 0.35; bloomPass.threshold = 0.55; if (crtPass) crtPass.uniforms.scanIntensity.value = 0.0; }
+    if (level === 'medium') { bloomPass.strength = 0.32; bloomPass.radius = 0.45; bloomPass.threshold = 0.5;  if (crtPass) crtPass.uniforms.scanIntensity.value = 0.04; }
+    if (level === 'high')   { bloomPass.strength = 0.42; bloomPass.radius = 0.55; bloomPass.threshold = 0.45; if (crtPass) crtPass.uniforms.scanIntensity.value = 0.06; }
 }
 
 export function tickPostFX(dt) {

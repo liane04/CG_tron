@@ -46,7 +46,7 @@ export function initMenu(rendererRef, opts) {
 
     // Post-FX
     buildPostFX(renderer, menuScene, menuCamera, {
-        bloomStrength: 1.1, bloomRadius: 0.65, bloomThreshold: 0.0
+        bloomStrength: 0.42, bloomRadius: 0.55, bloomThreshold: 0.45
     });
     setQuality(settings.visual.quality);
 

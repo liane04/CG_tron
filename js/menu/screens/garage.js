@@ -28,30 +28,77 @@ var callbacks = {};
 
 function makePodium() {
     var g = new THREE.Group();
+
+    // Polished metallic disc
     var disc = new THREE.Mesh(
-        new THREE.CylinderGeometry(2.4, 2.6, 0.3, 32),
-        new THREE.MeshStandardMaterial({ color: 0x222244, metalness: 0.6, roughness: 0.3 })
+        new THREE.CylinderGeometry(2.6, 2.8, 0.35, 48),
+        new THREE.MeshStandardMaterial({
+            color: 0x111128, metalness: 0.85, roughness: 0.18
+        })
     );
     disc.position.y = 0.05;
     g.add(disc);
 
-    // Edge ring
+    // Outer cyan torus rim
     var ring = new THREE.Mesh(
-        new THREE.TorusGeometry(2.45, 0.04, 8, 64),
+        new THREE.TorusGeometry(2.65, 0.06, 8, 64),
         new THREE.MeshBasicMaterial({ color: 0x00eaff, toneMapped: false })
     );
     ring.rotation.x = -Math.PI / 2;
-    ring.position.y = 0.22;
+    ring.position.y = 0.24;
     g.add(ring);
 
-    // Inner glow ring
+    // Inner magenta torus
     var ring2 = new THREE.Mesh(
-        new THREE.RingGeometry(0.7, 2.2, 48),
-        new THREE.MeshBasicMaterial({ color: 0x4422aa, side: THREE.DoubleSide, transparent: true, opacity: 0.5, toneMapped: false })
+        new THREE.TorusGeometry(1.6, 0.04, 6, 48),
+        new THREE.MeshBasicMaterial({ color: 0xff2bd6, toneMapped: false })
     );
     ring2.rotation.x = -Math.PI / 2;
-    ring2.position.y = 0.07;
+    ring2.position.y = 0.24;
     g.add(ring2);
+
+    // Glow disc beneath (radial fade)
+    var glowDisc = new THREE.Mesh(
+        new THREE.RingGeometry(0.5, 2.55, 48),
+        new THREE.MeshBasicMaterial({
+            color: 0x4422aa, side: THREE.DoubleSide,
+            transparent: true, opacity: 0.55, toneMapped: false, depthWrite: false
+        })
+    );
+    glowDisc.rotation.x = -Math.PI / 2;
+    glowDisc.position.y = 0.07;
+    g.add(glowDisc);
+    g.userData.glowDisc = glowDisc;
+
+    // Three rotating scan rings around the podium for life
+    for (var i = 0; i < 3; i++) {
+        var r = 3.0 + i * 0.4;
+        var rg = new THREE.Mesh(
+            new THREE.RingGeometry(r - 0.02, r, 64, 1, 0, Math.PI * 0.6 + Math.random() * 0.5),
+            new THREE.MeshBasicMaterial({
+                color: i % 2 === 0 ? 0x00eaff : 0xff2bd6, side: THREE.DoubleSide,
+                transparent: true, opacity: 0.7, toneMapped: false, depthWrite: false
+            })
+        );
+        rg.rotation.x = -Math.PI / 2;
+        rg.position.y = -0.95;
+        rg.userData.spinSpeed = (i % 2 === 0 ? 0.4 : -0.5) * (1 + i * 0.2);
+        g.add(rg);
+        if (!g.userData.scanRings) g.userData.scanRings = [];
+        g.userData.scanRings.push(rg);
+    }
+
+    // Reflective floor patch directly beneath the vehicle
+    var reflector = new THREE.Mesh(
+        new THREE.CircleGeometry(2.7, 48),
+        new THREE.MeshStandardMaterial({
+            color: 0x110624, metalness: 0.9, roughness: 0.25
+        })
+    );
+    reflector.rotation.x = -Math.PI / 2;
+    reflector.position.y = -0.96;
+    g.add(reflector);
+
     return g;
 }
 
@@ -224,9 +271,25 @@ export function buildGarage(scene) {
     group.add(sl.spot); group.add(sl.target);
     group.add(sr.spot); group.add(sr.target);
 
+    // GARAGE title up top
+    var title = makeTextPlane('GARAGE', {
+        fontSize: 96, color: '#ffffff', glowColor: '#ff2bd6',
+        worldHeight: 0.55, letterSpacing: 8, weight: '900', glowStrength: 1.2
+    });
+    title.position.set(0, 5.0, 0);
+    group.add(title);
+
+    var titleSub = makeTextPlane('// VEHICLE  CONFIGURATION //', {
+        fontSize: 32, color: '#a0e8ff', glowColor: '#00eaff',
+        worldHeight: 0.2, letterSpacing: 3, weight: '500', glowStrength: 0.7
+    });
+    titleSub.position.set(0, 4.55, 0);
+    group.add(titleSub);
+
     // Vehicle name above the podium
     nameLabel = makeTextPlane(VEHICLES[0].name, {
-        fontSize: 96, color: '#ffffff', glowColor: '#00eaff', worldHeight: 0.5
+        fontSize: 100, color: '#ffffff', glowColor: '#00eaff',
+        worldHeight: 0.55, letterSpacing: 6, weight: '900', glowStrength: 1.2
     });
     nameLabel.position.set(0, 4.0, 0);
     group.add(nameLabel);
@@ -282,7 +345,8 @@ export function buildGarage(scene) {
 
     // Hint at bottom — clarifies the new dual-axis controls
     hintLabel = makeTextPlane('< >  Veiculo    ^ v  Cor    [ENTER] Confirmar    [ESC] Voltar', {
-        fontSize: 36, color: '#9999cc', glowColor: '#3344aa', worldHeight: 0.18
+        fontSize: 40, color: '#aaaacc', glowColor: '#3344aa',
+        worldHeight: 0.26, letterSpacing: 2, weight: '500', glowStrength: 0.5
     });
     hintLabel.position.set(0, -2.6, 0);
     group.add(hintLabel);
@@ -414,8 +478,15 @@ export function updateGarage(dt) {
     t += dt;
     // Slow rotation of the showcased vehicle
     if (currentVehicleMesh) currentVehicleMesh.rotation.y += dt * 0.45;
-    // Pulse the podium ring
-    if (podium && podium.children[1]) {
-        podium.children[1].material.opacity = 0.85 + Math.sin(t * 2.0) * 0.1;
+    // Pulse the podium glow disc
+    if (podium && podium.userData.glowDisc) {
+        podium.userData.glowDisc.material.opacity = 0.45 + Math.sin(t * 1.8) * 0.12;
+    }
+    // Spin the scan rings independently
+    if (podium && podium.userData.scanRings) {
+        var rings = podium.userData.scanRings;
+        for (var i = 0; i < rings.length; i++) {
+            rings[i].rotation.z += rings[i].userData.spinSpeed * dt;
+        }
     }
 }

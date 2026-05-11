@@ -35,6 +35,10 @@ export var ANCHORS = {
         // Camera sweeps forward along the road as the menu hands off to the game
         position: new THREE.Vector3(0, 2.5, -25),
         target:   new THREE.Vector3(0, 2, -80)
+    },
+    CUSTOMIZE: {
+        position: new THREE.Vector3(0, 3.5, 11),
+        target:   new THREE.Vector3(0, 1.8, 0)
     }
 };
 

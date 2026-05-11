@@ -17,7 +17,8 @@ var defaults = {
     },
     garage: {
         vehicleId: 'mota',
-        colorId: 'cyan'
+        colorId: 'cyan',
+        trailId: 'wireframe'
     },
     track: {
         mapId: 'space'

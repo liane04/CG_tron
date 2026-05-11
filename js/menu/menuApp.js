@@ -16,6 +16,7 @@ import { buildMainMenu } from './screens/mainMenu.js';
 import { buildGarage } from './screens/garage.js';
 import { buildSettings } from './screens/settings.js';
 import { buildTrackSelect } from './screens/trackSelect.js';
+import { buildCustomize } from './screens/customize.js';
 import { initMenuState, updateMenuState, returnToMenu, getCurrentState, STATES } from './menuState.js';
 
 var menuScene = null;
@@ -41,6 +42,7 @@ export function initMenu(rendererRef, opts) {
     buildSplashScreen(menuScene, { title: opts.title || 'NEON DRIVE', subtitle: opts.subtitle || 'GRAND PRIX 2087' });
     buildMainMenu(menuScene);
     buildGarage(menuScene);
+    buildCustomize(menuScene);
     buildSettings(menuScene, settings);
     buildTrackSelect(menuScene);
 

@@ -10,6 +10,7 @@ import { showMainMenu, hideMainMenu, getMainMenuHandler, getMainMenuHoverables, 
 import { showGarage, hideGarage, getGarageHandler, getGarageHoverables, updateGarage } from './screens/garage.js';
 import { showSettings, hideSettings, getSettingsHandler, updateSettings } from './screens/settings.js';
 import { showTrackSelect, hideTrackSelect, getTrackSelectHandler, getTrackSelectHoverables, updateTrackSelect } from './screens/trackSelect.js';
+import { showCustomize, hideCustomize, getCustomizeHandler, getCustomizeHoverables, updateCustomize } from './screens/customize.js';
 
 import { saveSettings } from './settingsStore.js';
 
@@ -19,7 +20,8 @@ export var STATES = {
     GARAGE: 'GARAGE',
     SETTINGS: 'SETTINGS',
     TRACK_SELECT: 'TRACK_SELECT',
-    GAME: 'GAME'
+    GAME: 'GAME',
+    CUSTOMIZE: 'CUSTOMIZE'
 };
 
 var currentState = STATES.SPLASH;
@@ -41,6 +43,7 @@ function goToState(next, opts) {
         if (prev === STATES.GARAGE)        hideGarage();
         if (prev === STATES.SETTINGS)      hideSettings();
         if (prev === STATES.TRACK_SELECT)  hideTrackSelect();
+        if (prev === STATES.CUSTOMIZE)     hideCustomize();
     };
 
     if (next === STATES.GAME) {
@@ -81,12 +84,17 @@ function goToState(next, opts) {
             setHoverables(getTrackSelectHoverables());
             setActiveHandler(trackSelectHandler);
             moveTo('TRACK_SELECT');
+        } else if (next === STATES.CUSTOMIZE) {
+            showCustomize(settings.garage);
+            setHoverables(getCustomizeHoverables());
+            setActiveHandler(customizeHandler);
+            moveTo('CUSTOMIZE');
         }
     }
 }
 
 // --- Handlers (built lazily after screens exist) ---
-var splashHandler, mainHandler, garageHandler, settingsHandler, trackSelectHandler;
+var splashHandler, mainHandler, garageHandler, settingsHandler, trackSelectHandler, customizeHandler;
 
 export function initMenuState(initialSettings, opts) {
     settings = initialSettings;
@@ -108,16 +116,26 @@ export function initMenuState(initialSettings, opts) {
     garageHandler = getGarageHandler({
         onConfirm: function (selection) {
             settings.garage.vehicleId = selection.vehicleId;
-            settings.garage.colorId = selection.colorId;
             saveSettings(settings);
-            // After picking a vehicle, jump to track select then the game.
+            goToState(STATES.CUSTOMIZE);
+        },
+        onBack: function () {
+            goToState(STATES.MAIN);
+        }
+    });
+
+    customizeHandler = getCustomizeHandler({
+        onConfirm: function (selection) {
+            settings.garage.colorId = selection.colorId;
+            settings.garage.trailId = selection.trailId;
+            saveSettings(settings);
             goToState(STATES.TRACK_SELECT);
         },
         onBack: function (selection) {
-            settings.garage.vehicleId = selection.vehicleId;
             settings.garage.colorId = selection.colorId;
+            settings.garage.trailId = selection.trailId;
             saveSettings(settings);
-            goToState(STATES.MAIN);
+            goToState(STATES.GARAGE);
         }
     });
 
@@ -154,6 +172,7 @@ export function updateMenuState(dt) {
     updateSplash(dt);
     updateMainMenu(dt);
     updateGarage(dt);
+    updateCustomize(dt);
     updateSettings(dt);
     updateTrackSelect(dt);
 }

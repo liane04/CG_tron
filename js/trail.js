@@ -1,115 +1,102 @@
 import * as THREE from 'three';
 
-// Trail de luz tipo "cauda de cobra": fila FIFO de pontos com tamanho máximo.
-// Geometria é uma ribbon de quads (2 vértices por ponto) construída no plano XZ
-// com largura constante. O buffer é de tamanho fixo — só atualizamos posições
-// e o drawRange à medida que a cauda cresce/encolhe.
+// Trail de luz: lista de meshes individuais (segmentos).
+// Suporta diferentes estilos: wireframe (neon grid), sólido (wall) e fita (classic).
 
-const ALTURA_TRAIL = 0.25;
-const LARGURA_DEFAULT = 0.3;
-const DIST_MIN_DEFAULT = 0.3;
+const ALTURA_WALL = 0.6;
+const ALTURA_RIBBON = 0.15;
+const ESPESSURA_TRAIL = 0.3;
+const DIST_MIN_DEFAULT = 0.5;
 
-export function criarTrail(cor, comprimentoMax = 300) {
-    const maxLen = Math.max(2, comprimentoMax | 0);
+export function criarTrail(cor, comprimentoMax = 300, trailId = 'wireframe') {
+    const group = new THREE.Group();
+    group.name = 'trailGroup';
 
-    const positions = new Float32Array(maxLen * 2 * 3);
-    const numQuads = maxLen - 1;
-    const indices = new Uint16Array(numQuads * 6);
-    for (let i = 0; i < numQuads; i++) {
-        const a = i * 2, b = a + 1, c = a + 2, d = a + 3;
-        indices[i * 6 + 0] = a;
-        indices[i * 6 + 1] = b;
-        indices[i * 6 + 2] = c;
-        indices[i * 6 + 3] = b;
-        indices[i * 6 + 4] = d;
-        indices[i * 6 + 5] = c;
-    }
-
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    geometry.setIndex(new THREE.BufferAttribute(indices, 1));
-    geometry.setDrawRange(0, 0);
+    const isWireframe = (trailId === 'wireframe');
+    const isRibbon = (trailId === 'ribbon');
+    const isCubes = (trailId === 'cubes');
 
     const material = new THREE.MeshBasicMaterial({
         color: cor,
-        side: THREE.DoubleSide,
+        wireframe: isWireframe,
         transparent: true,
-        opacity: 0.9,
-        toneMapped: false,
-        depthWrite: false
+        opacity: isCubes ? 1.0 : (isRibbon ? 0.9 : 0.8),
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        toneMapped: false
     });
 
-    const mesh = new THREE.Mesh(geometry, material);
-    mesh.frustumCulled = false;
-    mesh.renderOrder = 2;
-
     return {
+        id: trailId,
         cor: cor,
-        maxLen: maxLen,
-        largura: LARGURA_DEFAULT,
-        distMin: DIST_MIN_DEFAULT,
+        maxLen: comprimentoMax,
+        espessura: ESPESSURA_TRAIL,
+        altura: isRibbon ? ALTURA_RIBBON : ALTURA_WALL,
+        distMin: isCubes ? 0.7 : DIST_MIN_DEFAULT, // Cubos mais próximos
         pontos: [],
+        segmentos: [],
         ultimo: null,
-        positions: positions,
-        geometry: geometry,
         material: material,
-        mesh: mesh
+        mesh: group
     };
 }
 
 export function adicionarPonto(trail, posicao) {
     if (!trail) return;
+    
     if (trail.ultimo) {
         const dx = posicao.x - trail.ultimo.x;
         const dz = posicao.z - trail.ultimo.z;
         if (dx * dx + dz * dz < trail.distMin * trail.distMin) return;
     }
-    const p = new THREE.Vector3(posicao.x, ALTURA_TRAIL, posicao.z);
-    trail.pontos.push(p);
-    trail.ultimo = p;
-    if (trail.pontos.length > trail.maxLen) trail.pontos.shift();
-    reconstruirGeometria(trail);
-}
 
-function reconstruirGeometria(trail) {
-    const pontos = trail.pontos;
-    const half = trail.largura * 0.5;
-    const positions = trail.positions;
-    const n = pontos.length;
+    const p = new THREE.Vector3(posicao.x, 0, posicao.z);
 
-    for (let i = 0; i < n; i++) {
-        const p = pontos[i];
-        let tx, tz;
-        if (n === 1) {
-            tx = 1; tz = 0;
-        } else if (i === 0) {
-            tx = pontos[1].x - p.x;
-            tz = pontos[1].z - p.z;
-        } else if (i === n - 1) {
-            tx = p.x - pontos[i - 1].x;
-            tz = p.z - pontos[i - 1].z;
-        } else {
-            tx = pontos[i + 1].x - pontos[i - 1].x;
-            tz = pontos[i + 1].z - pontos[i - 1].z;
-        }
-        const len = Math.hypot(tx, tz) || 1;
-        tx /= len; tz /= len;
-        const px = -tz * half;
-        const pz =  tx * half;
-
-        const off = i * 6;
-        positions[off + 0] = p.x + px;
-        positions[off + 1] = ALTURA_TRAIL;
-        positions[off + 2] = p.z + pz;
-        positions[off + 3] = p.x - px;
-        positions[off + 4] = ALTURA_TRAIL;
-        positions[off + 5] = p.z - pz;
+    if (trail.id === 'cubes') {
+        criarCuboDados(trail, p);
+    } else if (trail.ultimo) {
+        criarSegmentoMuro(trail, trail.ultimo, p);
     }
 
-    trail.geometry.attributes.position.needsUpdate = true;
-    const numQuads = Math.max(0, n - 1);
-    trail.geometry.setDrawRange(0, numQuads * 6);
-    if (n > 0) trail.geometry.computeBoundingSphere();
+    trail.pontos.push(p);
+    trail.ultimo = p;
+
+    if (trail.segmentos.length > trail.maxLen) {
+        const antigo = trail.segmentos.shift();
+        trail.mesh.remove(antigo);
+        antigo.geometry.dispose();
+        trail.pontos.shift();
+    }
+}
+
+function criarCuboDados(trail, p) {
+    const size = 0.5;
+    const geo = new THREE.BoxGeometry(size, size, size);
+    const mesh = new THREE.Mesh(geo, trail.material);
+    mesh.position.copy(p);
+    mesh.position.y = 0.6; // Flutua no ar
+    mesh.name = "trailSegmentoAtivo";
+    
+    // Rotação aleatória inicial para parecer mais orgânico
+    mesh.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+    
+    trail.mesh.add(mesh);
+    trail.segmentos.push(mesh);
+}
+
+function criarSegmentoMuro(trail, p1, p2) {
+    const dist = p1.distanceTo(p2);
+    const geo = new THREE.BoxGeometry(trail.espessura, trail.altura, dist, 1, (trail.id === 'wireframe' ? 4 : 1), 1);
+    geo.translate(0, trail.altura / 2, dist / 2);
+
+    const segmento = new THREE.Mesh(geo, trail.material);
+    segmento.name = "trailSegmentoAtivo";
+    
+    segmento.position.copy(p1);
+    segmento.lookAt(p2);
+    
+    trail.mesh.add(segmento);
+    trail.segmentos.push(segmento);
 }
 
 export function obterSegmentos(trail) {
@@ -118,17 +105,47 @@ export function obterSegmentos(trail) {
 
 export function resetarTrail(trail) {
     if (!trail) return;
+    while (trail.segmentos.length > 0) {
+        const s = trail.segmentos.pop();
+        trail.mesh.remove(s);
+        s.geometry.dispose();
+    }
     trail.pontos.length = 0;
     trail.ultimo = null;
-    trail.geometry.setDrawRange(0, 0);
 }
 
 export function destruirTrail(trail, cena) {
     if (!trail) return;
-    if (cena && trail.mesh.parent === cena) cena.remove(trail.mesh);
-    else if (trail.mesh.parent) trail.mesh.parent.remove(trail.mesh);
-    trail.geometry.dispose();
+    resetarTrail(trail);
+    if (cena) cena.remove(trail.mesh);
     trail.material.dispose();
-    trail.pontos.length = 0;
-    trail.ultimo = null;
 }
+
+export function atualizarTrail(trail, dt) {
+    if (!trail || !trail.mesh) return;
+    const agora = Date.now();
+    const intensidadeTremor = 0.15;
+    const velocidadeTremor = 0.05;
+    const velocidadePulsoBrilho = 0.005;
+
+    const isCubes = (trail.id === 'cubes');
+
+    trail.segmentos.forEach(objeto => {
+        if (isCubes) {
+            // Rotação constante para os cubos
+            objeto.rotation.x += dt * 1.5;
+            objeto.rotation.y += dt * 2;
+            // Pulsação individual de escala
+            const pulse = 1 + Math.sin(agora * 0.01 + objeto.position.x + objeto.position.z) * 0.3;
+            objeto.scale.setScalar(pulse);
+        } else {
+            // Tremor na largura (X local) para os muros
+            const tremorScale = 1 + (Math.sin(agora * velocidadeTremor + objeto.position.x + objeto.position.z) * intensidadeTremor);
+            objeto.scale.x = tremorScale;
+        }
+    });
+
+    // Pulso de brilho no material partilhado (faz os cubos "piscarem" em conjunto)
+    trail.material.opacity = 0.6 + Math.sin(agora * velocidadePulsoBrilho) * 0.2;
+}
+

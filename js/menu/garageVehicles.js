@@ -70,6 +70,13 @@ export var VEHICLES = [
     }
 ];
 
+export var TRAILS = [
+    { id: 'wireframe', name: 'NEON GRID',  description: 'Muro 3D Wireframe' },
+    { id: 'solid',     name: 'SOLID WALL', description: 'Muro 3D Sólido' },
+    { id: 'cubes',     name: 'DATA STREAM',description: 'Cubos Flutuantes' },
+    { id: 'ribbon',    name: 'CLASSIC',    description: 'Trilho 2D Plano' }
+];
+
 export function findVehicle(id) {
     for (var i = 0; i < VEHICLES.length; i++) if (VEHICLES[i].id === id) return VEHICLES[i];
     return VEHICLES[0];
@@ -77,6 +84,10 @@ export function findVehicle(id) {
 export function findColor(id) {
     for (var i = 0; i < COLORS.length; i++) if (COLORS[i].id === id) return COLORS[i];
     return COLORS[0];
+}
+export function findTrail(id) {
+    for (var i = 0; i < TRAILS.length; i++) if (TRAILS[i].id === id) return TRAILS[i];
+    return TRAILS[0];
 }
 
 // Each vehicle factory bakes the colour at construction time. To "apply" a

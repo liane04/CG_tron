@@ -15,7 +15,7 @@ import { criarGlider, atualizarGlider } from './glider.js';
 import { inicializarInput, atualizarMotas, definirObstaculos, definirIAJ1Ativa, definirIAJ2Ativa } from './input.js';
 import { criarLuzes, toggleLuz } from './luzes.js';
 import { mapas } from './mapas.js';
-import { criarTrail, destruirTrail } from './trail.js';
+import { criarTrail, destruirTrail, atualizarTrail } from './trail.js';
 import { configurarGameLogic, iniciarRonda, atualizarGameLogic, limparGameLogic } from './gameLogic.js';
 import { inicializarIA, atualizarIA } from './ai.js';
 
@@ -239,8 +239,8 @@ function buildGame() {
         definirObstaculos(grupoArena);
 
         // Trails — cor sincronizada com a do veículo correspondente
-        trailMota = criarTrail(corP1, 300);
-        trailSkate = criarTrail(corP2, 300);
+        trailMota = criarTrail(corP1, 300, garage.trailId);
+        trailSkate = criarTrail(corP2, 300, garage.trailId);
         cena.add(trailMota.mesh);
         cena.add(trailSkate.mesh);
 
@@ -368,6 +368,10 @@ function buildGame() {
 
         if (modoCamara === 'livre') controlos.update();
         modoCamaraAnterior = modoCamara;
+
+        // --- ANIMAÇÃO DE ENERGIA INSTÁVEL (Tremor e Pulso nos Trails) ---
+        if (trailMota)  atualizarTrail(trailMota, delta);
+        if (trailSkate) atualizarTrail(trailSkate, delta);
     }
 
     function render() { renderer.render(cena, camaraAtiva); }

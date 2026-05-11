@@ -14,13 +14,15 @@ const _speederAnimData = [];
 export function atualizarSpeeder(delta) {
     const t = performance.now() * 0.001;
     for (const d of _speederAnimData) {
-        if (d.underglow) d.underglow.material.opacity = 0.55 + Math.sin(t * 3.2) * 0.2;
+        if (d.underglow) d.underglow.material.opacity = 0.8 + Math.sin(t * 3.2) * 0.15;
+        if (d.luzUnderglow) d.luzUnderglow.intensity = 2.2 + Math.sin(t * 3.2) * 0.6;
         if (d.escapes) {
-            const pulso = 1.4 + Math.sin(t * 10) * 0.6;
+            const pulso = 2.0 + Math.sin(t * 10) * 0.8;
             for (const e of d.escapes) e.material.emissiveIntensity = pulso;
         }
+        if (d.luzEscape) d.luzEscape.intensity = 0.9 + Math.sin(t * 10) * 0.4;
         if (d.taillights) {
-            const tail = 1.0 + Math.sin(t * 5) * 0.3;
+            const tail = 1.6 + Math.sin(t * 5) * 0.4;
             for (const l of d.taillights) l.material.emissiveIntensity = tail;
         }
         if (d.rodas) {
@@ -30,7 +32,10 @@ export function atualizarSpeeder(delta) {
 }
 
 export function criarSpeeder(corNeon = 0x00ffff) {
-    const ESCALA = 0.6;
+    // Escala equivalente à da mota/skate (ESCALA 0.38 com LARGURA_MULT 1.7
+    // → ~0.65 no eixo longo). O speeder é construído maior internamente,
+    // por isso usamos um valor um pouco abaixo para igualar visualmente.
+    const ESCALA = 1.0;
     const raiz = new THREE.Group();
     const corpo = new THREE.Group();
     raiz.add(corpo);
@@ -89,18 +94,18 @@ export function criarSpeeder(corNeon = 0x00ffff) {
 
     // Materiais nativos (sem textura) — neon, luzes, pneus
     const matNeon = new THREE.MeshStandardMaterial({
-        color: corNeon, emissive: corNeon, emissiveIntensity: 1.4,
+        color: corNeon, emissive: corNeon, emissiveIntensity: 2.5,
         metalness: 0.3, roughness: 0.35, toneMapped: false
     });
     const matFarol = new THREE.MeshBasicMaterial({
         color: 0xffffff, toneMapped: false
     });
     const matTaillight = new THREE.MeshStandardMaterial({
-        color: 0xff2244, emissive: 0xff2244, emissiveIntensity: 1.0,
+        color: 0xff2244, emissive: 0xff2244, emissiveIntensity: 1.8,
         roughness: 0.3, metalness: 0.2, toneMapped: false
     });
     const matEscape = new THREE.MeshStandardMaterial({
-        color: 0xff7733, emissive: 0xff5522, emissiveIntensity: 1.4,
+        color: 0xff7733, emissive: 0xff5522, emissiveIntensity: 2.2,
         roughness: 0.3, metalness: 0.5, toneMapped: false
     });
     const matPneu = new THREE.MeshStandardMaterial({
@@ -207,7 +212,7 @@ export function criarSpeeder(corNeon = 0x00ffff) {
     const underglow = new THREE.Mesh(
         new THREE.BoxGeometry(3.2, 0.05, 1.0),
         new THREE.MeshBasicMaterial({
-            color: corNeon, transparent: true, opacity: 0.7, toneMapped: false
+            color: corNeon, transparent: true, opacity: 0.95, toneMapped: false
         })
     );
     underglow.position.y = 0.12;
@@ -327,7 +332,7 @@ export function criarSpeeder(corNeon = 0x00ffff) {
     const halo = new THREE.Mesh(
         new THREE.RingGeometry(0.6, 1.5, 32),
         new THREE.MeshBasicMaterial({
-            color: corNeon, transparent: true, opacity: 0.35,
+            color: corNeon, transparent: true, opacity: 0.7,
             side: THREE.DoubleSide, toneMapped: false, depthWrite: false
         })
     );
@@ -335,12 +340,36 @@ export function criarSpeeder(corNeon = 0x00ffff) {
     halo.position.y = 0.02;
     corpo.add(halo);
 
+    // ─── Luzes reais (PointLights) — iluminam a cena à volta do carro ─────
+    // Underglow neon — point light azul/ciano no chão
+    const luzUnderglow = new THREE.PointLight(corNeon, 2.5, 5.0, 2);
+    luzUnderglow.position.set(0, 0.05, 0);
+    corpo.add(luzUnderglow);
+
+    // Faróis frontais — point lights brancos a iluminar à frente
+    [-1, 1].forEach(s => {
+        const luzFarol = new THREE.PointLight(0xffffee, 1.2, 4.5, 2);
+        luzFarol.position.set(1.9, 0.55, s * 0.5);
+        corpo.add(luzFarol);
+    });
+
+    // Luzes traseiras — point lights vermelhos suaves
+    const luzTras = new THREE.PointLight(0xff2244, 0.8, 3.0, 2);
+    luzTras.position.set(-2.0, 0.55, 0);
+    corpo.add(luzTras);
+
+    // Escapes — point light laranja-quente atrás
+    const luzEscape = new THREE.PointLight(0xff5522, 1.0, 2.5, 2);
+    luzEscape.position.set(-2.1, 0.32, 0);
+    corpo.add(luzEscape);
+
     // O build acima tem a frente em +X. Rodar para -Z (convenção do input).
     corpo.rotation.y = Math.PI / 2;
 
     _speederAnimData.push({
         underglow: underglow, escapes: escapes,
-        taillights: taillights, rodas: rodas
+        taillights: taillights, rodas: rodas,
+        luzUnderglow: luzUnderglow, luzEscape: luzEscape
     });
     return raiz;
 }

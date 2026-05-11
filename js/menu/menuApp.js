@@ -17,6 +17,7 @@ import { buildGarage } from './screens/garage.js';
 import { buildSettings } from './screens/settings.js';
 import { buildTrackSelect } from './screens/trackSelect.js';
 import { buildCustomize } from './screens/customize.js';
+import { buildModeSelect } from './screens/modeSelect.js';
 import { initMenuState, updateMenuState, returnToMenu, getCurrentState, STATES } from './menuState.js';
 
 var menuScene = null;
@@ -45,6 +46,7 @@ export function initMenu(rendererRef, opts) {
     buildCustomize(menuScene);
     buildSettings(menuScene, settings);
     buildTrackSelect(menuScene);
+    buildModeSelect(menuScene);
 
     // Post-FX
     buildPostFX(renderer, menuScene, menuCamera, {

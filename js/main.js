@@ -64,10 +64,15 @@ function start() {
             var mapId = settings.track && settings.track.mapId ? settings.track.mapId : mapas[0].id;
             var pickedMap = mapas.find(function (m) { return m.id === mapId; }) || mapas[0];
             ensureGameInitialised();
-            gameApi.startWithMap(pickedMap, settings.garage || null);
+            var gameMode = settings.gameMode || 'ai';
+            gameApi.startWithMap(pickedMap, settings.garage || null, gameMode);
             playMapMusic(pickedMap.id);
             appMode = 'game';
-            document.getElementById('info').style.display = 'block';
+            var info = document.getElementById('info');
+            info.style.display = 'block';
+            info.innerHTML = (gameMode === 'local1v1')
+                ? 'P1 SETAS &nbsp; P2 WASD &nbsp; [ESC] Menu'
+                : '[V] 3&ordf; Pessoa &nbsp; [B] Topo &nbsp; [C] Alternar &nbsp; [ESC] Menu';
         },
         onSettingsChange: function (s) {
             menuSettings = s;
@@ -114,7 +119,10 @@ function buildGame() {
     camaraPerspetiva.lookAt(0, 0, 0);
 
     var aspecto = window.innerWidth / window.innerHeight;
-    var tamanhoOrto = ARENA * 0.62;
+    // Vista ortográfica encosta verticalmente à arena (ARENA/2 de meia-extensão)
+    // — as motas ficam grandes o suficiente para o modo 1v1 sem cortar a arena
+    // na horizontal num ecrã landscape típico.
+    var tamanhoOrto = ARENA * 0.5;
     var camaraOrtografica = new THREE.OrthographicCamera(
         -tamanhoOrto * aspecto, tamanhoOrto * aspecto,
         tamanhoOrto, -tamanhoOrto, 0.1, 800
@@ -125,6 +133,7 @@ function buildGame() {
     var camaraAtiva = camaraPerspetiva;
     var modoCamara = 'livre';
     var modoCamaraAnterior = 'livre';
+    var modoJogoAtual = 'ai';   // 'ai' | 'local1v1' — define IA e câmara fixa
 
     var controlos = new OrbitControls(camaraPerspetiva, renderer.domElement);
     controlos.enableDamping = true;
@@ -189,7 +198,8 @@ function buildGame() {
         return criarMota(color);
     }
 
-    function startWithMap(mapa, garage) {
+    function startWithMap(mapa, garage, gameMode) {
+        modoJogoAtual = gameMode || 'ai';
         if (grupoArena) { cena.remove(grupoArena); grupoArena = null; }
         if (motaJogador1) { cena.remove(motaJogador1); motaJogador1 = null; }
         if (skateJogador2) { destruirSkate(skateJogador2); cena.remove(skateJogador2); skateJogador2 = null; }
@@ -237,10 +247,12 @@ function buildGame() {
         cena.add(trailMota.mesh);
         cena.add(trailSkate.mesh);
 
-        // IA controla o skate (Jogador 2), o humano controla a Mota (Jogador 1)
+        // No modo "ai" o skate é controlado pela IA; no "local1v1" ambos os
+        // jogadores são humanos (setas vs WASD) e a IA fica desligada.
+        var iaJ2Ativa = (modoJogoAtual !== 'local1v1');
         definirIAJ1Ativa(false);
-        definirIAJ2Ativa(true);
-        inicializarIA(skateJogador2, trailSkate, trailMota, ARENA / 2);
+        definirIAJ2Ativa(iaJ2Ativa);
+        if (iaJ2Ativa) inicializarIA(skateJogador2, trailSkate, trailMota, ARENA / 2);
 
         // Configurar e arrancar a primeira ronda
         configurarGameLogic({
@@ -254,8 +266,13 @@ function buildGame() {
         });
         iniciarRonda();
 
-        // Apply menu-chosen camera mode
-        if (menuSettings && menuSettings.visual && menuSettings.visual.cameraMode === 'orthographic') {
+        // Câmara: no modo 1v1 fica obrigatoriamente em topo (estilo Tron de 1982).
+        // No modo single-player respeita a preferência das definições.
+        if (modoJogoAtual === 'local1v1') {
+            camaraAtiva = camaraOrtografica;
+            modoCamara = 'topo';
+            aplicarModoCamara();
+        } else if (menuSettings && menuSettings.visual && menuSettings.visual.cameraMode === 'orthographic') {
             camaraAtiva = camaraOrtografica;
             modoCamara = 'topo';
         } else {
@@ -283,6 +300,10 @@ function buildGame() {
 
     window.addEventListener('keydown', function (e) {
         if (appMode !== 'game') return;
+        if (e.key === 'Escape') { backToMenu(); return; }
+        // No modo 1v1 a câmara é fixa em topo — os toggles C/V/B ficam inativos
+        // para não partir o equilíbrio do split-keyboard.
+        if (modoJogoAtual === 'local1v1') return;
         if (e.key === 'c' || e.key === 'C') {
             if (modoCamara !== 'livre') {
                 modoCamara = 'livre';
@@ -294,7 +315,6 @@ function buildGame() {
         }
         if (e.key === 'v' || e.key === 'V') { modoCamara = 'terceiraPessoa'; aplicarModoCamara(); }
         if (e.key === 'b' || e.key === 'B') { modoCamara = 'topo'; aplicarModoCamara(); }
-        if (e.key === 'Escape') { backToMenu(); }
     });
 
     function update(delta) {
@@ -303,7 +323,7 @@ function buildGame() {
         atualizarJungle(delta);
         atualizarSkate(delta);
         atualizarSpeeder(delta);
-        atualizarIA(delta);
+        if (modoJogoAtual !== 'local1v1') atualizarIA(delta);
         atualizarMotas(delta);
         atualizarGameLogic(delta);
 

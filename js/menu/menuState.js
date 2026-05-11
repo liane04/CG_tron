@@ -11,12 +11,14 @@ import { showGarage, hideGarage, getGarageHandler, getGarageHoverables, updateGa
 import { showSettings, hideSettings, getSettingsHandler, updateSettings } from './screens/settings.js';
 import { showTrackSelect, hideTrackSelect, getTrackSelectHandler, getTrackSelectHoverables, updateTrackSelect } from './screens/trackSelect.js';
 import { showCustomize, hideCustomize, getCustomizeHandler, getCustomizeHoverables, updateCustomize } from './screens/customize.js';
+import { showModeSelect, hideModeSelect, getModeSelectHandler, getModeSelectHoverables, updateModeSelect } from './screens/modeSelect.js';
 
 import { saveSettings } from './settingsStore.js';
 
 export var STATES = {
     SPLASH: 'SPLASH',
     MAIN: 'MAIN',
+    MODE_SELECT: 'MODE_SELECT',
     GARAGE: 'GARAGE',
     SETTINGS: 'SETTINGS',
     TRACK_SELECT: 'TRACK_SELECT',
@@ -40,6 +42,7 @@ function goToState(next, opts) {
     var hideAfter = function () {
         if (prev === STATES.SPLASH)        hideSplash();
         if (prev === STATES.MAIN)          hideMainMenu();
+        if (prev === STATES.MODE_SELECT)   hideModeSelect();
         if (prev === STATES.GARAGE)        hideGarage();
         if (prev === STATES.SETTINGS)      hideSettings();
         if (prev === STATES.TRACK_SELECT)  hideTrackSelect();
@@ -89,12 +92,17 @@ function goToState(next, opts) {
             setHoverables(getCustomizeHoverables());
             setActiveHandler(customizeHandler);
             moveTo('CUSTOMIZE');
+        } else if (next === STATES.MODE_SELECT) {
+            showModeSelect(settings.gameMode);
+            setHoverables(getModeSelectHoverables());
+            setActiveHandler(modeSelectHandler);
+            moveTo('MODE_SELECT');
         }
     }
 }
 
 // --- Handlers (built lazily after screens exist) ---
-var splashHandler, mainHandler, garageHandler, settingsHandler, trackSelectHandler, customizeHandler;
+var splashHandler, mainHandler, garageHandler, settingsHandler, trackSelectHandler, customizeHandler, modeSelectHandler;
 
 export function initMenuState(initialSettings, opts) {
     settings = initialSettings;
@@ -106,11 +114,20 @@ export function initMenuState(initialSettings, opts) {
 
     mainHandler = getMainMenuHandler({
         onSelect: function (id) {
-            if (id === 'play')     goToState(STATES.TRACK_SELECT);
+            if (id === 'play')     goToState(STATES.MODE_SELECT);
             if (id === 'garage')   goToState(STATES.GARAGE);
             if (id === 'settings') goToState(STATES.SETTINGS);
         },
         onBack: function () { goToState(STATES.SPLASH); }
+    });
+
+    modeSelectHandler = getModeSelectHandler({
+        onConfirm: function (selection) {
+            settings.gameMode = selection.modeId;
+            saveSettings(settings);
+            goToState(STATES.GARAGE);
+        },
+        onBack: function () { goToState(STATES.MAIN); }
     });
 
     garageHandler = getGarageHandler({
@@ -120,7 +137,7 @@ export function initMenuState(initialSettings, opts) {
             goToState(STATES.CUSTOMIZE);
         },
         onBack: function () {
-            goToState(STATES.MAIN);
+            goToState(STATES.MODE_SELECT);
         }
     });
 
@@ -171,6 +188,7 @@ export function returnToMenu() {
 export function updateMenuState(dt) {
     updateSplash(dt);
     updateMainMenu(dt);
+    updateModeSelect(dt);
     updateGarage(dt);
     updateCustomize(dt);
     updateSettings(dt);

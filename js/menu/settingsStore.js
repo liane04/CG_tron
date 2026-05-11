@@ -22,7 +22,8 @@ var defaults = {
     },
     track: {
         mapId: 'space'
-    }
+    },
+    gameMode: 'ai'                 // 'ai' (single-player vs IA) | 'local1v1' (split-keyboard, top-down)
 };
 
 function deepClone(o) { return JSON.parse(JSON.stringify(o)); }

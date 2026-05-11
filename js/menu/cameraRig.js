@@ -39,6 +39,10 @@ export var ANCHORS = {
     CUSTOMIZE: {
         position: new THREE.Vector3(0, 3.5, 11),
         target:   new THREE.Vector3(0, 1.8, 0)
+    },
+    MODE_SELECT: {
+        position: new THREE.Vector3(0, 5, 13),
+        target:   new THREE.Vector3(0, 4, 0)
     }
 };
 

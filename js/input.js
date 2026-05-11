@@ -37,8 +37,6 @@ var LIMITE_ARENA = 20;    // ±ARENA/2 — atualizado por inicializarInput
 
 // --- Colisão com obstáculos ---
 var obstaculos = [];            // Array de THREE.Box3 (AABB em espaço-mundo)
-var raioJ1 = 0.8;               // Raio de colisão (XZ) calculado em inicializarInput
-var raioJ2 = 0.8;
 
 // --- Listeners (registados uma única vez) ---
 var listenersRegistados = false;
@@ -81,8 +79,13 @@ export function inicializarInput(mota, skate, arena) {
     estadoJ1 = criarEstado(mota);
     estadoJ2 = criarEstado(skate);
 
-    raioJ1 = calcularRaioColisao(mota);
-    raioJ2 = calcularRaioColisao(skate);
+    var dim1 = calcularDimensoes(mota);
+    estadoJ1.hw = dim1.hw;
+    estadoJ1.hl = dim1.hl;
+
+    var dim2 = calcularDimensoes(skate);
+    estadoJ2.hw = dim2.hw;
+    estadoJ2.hl = dim2.hl;
 
     // Limpar estado de teclas — evita heranças de sessões anteriores
     teclas = {};
@@ -100,8 +103,10 @@ export function inicializarInput(mota, skate, arena) {
     }
 }
 
-function calcularRaioColisao(veiculo) {
+function calcularDimensoes(veiculo) {
+    // Guardar rotação original
     var rotY = veiculo.rotation.y;
+    // Colocar a 0 para obter o tamanho local exato em X (largura) e Z (comprimento)
     veiculo.rotation.y = 0;
     veiculo.updateMatrixWorld(true);
 
@@ -114,7 +119,8 @@ function calcularRaioColisao(veiculo) {
     veiculo.rotation.y = rotY;
     veiculo.updateMatrixWorld(true);
 
-    // Usa 0.45 (90% de metade) para dar uma minúscula tolerância e evitar encravar em paredes
+    // Retorna as metades das dimensões (half-widths) para o cálculo OBB
+    // Usamos 0.45 (90% de metade) para dar uma minúscula tolerância e evitar encravar em paredes
     return { hw: size.x * 0.45, hl: size.z * 0.45 };
 }
 
@@ -126,7 +132,11 @@ export function definirObstaculos(grupoArena) {
     function coletar(obj) {
         if (obj.userData && obj.userData.isObstacle) {
             var box = new THREE.Box3().setFromObject(obj);
-            if (!box.isEmpty()) obstaculos.push(box);
+            if (!box.isEmpty()) {
+                // Se for um Mesh de hitbox (como criámos no deserto), 
+                // usamos a sua própria AABB para simplificar.
+                obstaculos.push(box);
+            }
             return;
         }
         for (var i = 0; i < obj.children.length; i++) {
@@ -136,20 +146,61 @@ export function definirObstaculos(grupoArena) {
     coletar(grupoArena);
 }
 
-function colideComObstaculo(posicao, raio) {
+/**
+ * Verifica colisão OBB (veículo) vs AABB (obstáculo) usando SAT simplificado.
+ */
+function colideComObstaculo(veiculo, hw, hl) {
+    var pos = veiculo.position;
+    var rot = veiculo.rotation.y;
+
+    // Eixos locais do veículo (direções X e Z no mundo)
+    var ax = Math.cos(rot);
+    var az = Math.sin(rot);
+
     for (var i = 0; i < obstaculos.length; i++) {
         var box = obstaculos[i];
-        if (posicao.y > box.max.y || posicao.y + 1.5 < box.min.y) continue;
-        var cx = Math.max(box.min.x, Math.min(posicao.x, box.max.x));
-        var cz = Math.max(box.min.z, Math.min(posicao.z, box.max.z));
-        var dx = posicao.x - cx;
-        var dz = posicao.z - cz;
-        if (dx * dx + dz * dz < raio * raio) return true;
+        
+        // Check rápido de altura
+        if (pos.y > box.max.y || pos.y + 1.2 < box.min.y) continue;
+
+        // Centro do obstáculo e meia-extensão (AABB)
+        var ox = (box.min.x + box.max.x) / 2;
+        var oz = (box.min.z + box.max.z) / 2;
+        var ohw = (box.max.x - box.min.x) / 2;
+        var ohl = (box.max.z - box.min.z) / 2;
+
+        // Vetor centro a centro
+        var dx = pos.x - ox;
+        var dz = pos.z - oz;
+
+        // SAT: Testar nos eixos do obstáculo (Mundo X e Z)
+        // Eixo X
+        var projL = hw * Math.abs(ax) + hl * Math.abs(az);
+        if (Math.abs(dx) > ohw + projL) continue;
+        
+        // Eixo Z
+        var projLz = hw * Math.abs(az) + hl * Math.abs(ax);
+        if (Math.abs(dz) > ohl + projLz) continue;
+
+        // SAT: Testar nos eixos do veículo
+        // Eixo Forward (Z local)
+        var s = -Math.sin(rot), c = -Math.cos(rot);
+        var distF = Math.abs(dx * s + dz * c);
+        var projO = ohw * Math.abs(s) + ohl * Math.abs(c);
+        if (distF > hl + projO) continue;
+
+        // Eixo Side (X local)
+        var sx = Math.cos(rot), sz = -Math.sin(rot);
+        var distS = Math.abs(dx * sx + dz * sz);
+        var projOs = ohw * Math.abs(sx) + ohl * Math.abs(sz);
+        if (distS > hw + projOs) continue;
+
+        return true;
     }
     return false;
 }
 
-function atualizarJogador(veiculo, estado, fonteTeclas, teclaEsq, teclaDir, raio, delta, paredeCb) {
+function atualizarJogador(veiculo, estado, fonteTeclas, teclaEsq, teclaDir, hw, hl, delta, paredeCb) {
     if (!veiculo || !estado) return;
 
     if (fonteTeclas[teclaEsq]) veiculo.rotation.y += VELOCIDADE_ROTACAO * delta;
@@ -176,14 +227,14 @@ function atualizarJogador(veiculo, estado, fonteTeclas, teclaEsq, teclaDir, raio
     // Colisão com obstáculos da arena — qualquer contacto é letal.
     // Tenta encostar o veículo ao limite (sliding) antes de disparar a morte
     // para que a posição da explosão seja coerente com o local do impacto.
-    if (obstaculos.length > 0 && colideComObstaculo(veiculo.position, raio)) {
+    if (obstaculos.length > 0 && colideComObstaculo(veiculo, hw, hl)) {
         var newX = veiculo.position.x;
         var newZ = veiculo.position.z;
         veiculo.position.x = prevX;
-        if (colideComObstaculo(veiculo.position, raio)) {
+        if (colideComObstaculo(veiculo, hw, hl)) {
             veiculo.position.x = newX;
             veiculo.position.z = prevZ;
-            if (colideComObstaculo(veiculo.position, raio)) {
+            if (colideComObstaculo(veiculo, hw, hl)) {
                 veiculo.position.x = prevX;
                 veiculo.position.z = prevZ;
             }
@@ -210,14 +261,14 @@ export function atualizarMotas(delta) {
         var fonteJ1 = iaAtivaJ1
             ? { ArrowLeft: teclasIA_J1.esq, ArrowRight: teclasIA_J1.dir }
             : teclas;
-        atualizarJogador(motaJ1, estadoJ1, fonteJ1, 'ArrowLeft', 'ArrowRight', raioJ1, delta,
+        atualizarJogador(motaJ1, estadoJ1, fonteJ1, 'ArrowLeft', 'ArrowRight', estadoJ1.hw, estadoJ1.hl, delta,
             aoColidirParedeJ1);
     }
     if (!pausadoJ2) {
         var fonteJ2 = iaAtivaJ2
             ? { KeyA: teclasIA_J2.esq, KeyD: teclasIA_J2.dir }
             : teclas;
-        atualizarJogador(skateJ2, estadoJ2, fonteJ2, 'KeyA', 'KeyD', raioJ2, delta,
+        atualizarJogador(skateJ2, estadoJ2, fonteJ2, 'KeyA', 'KeyD', estadoJ2.hw, estadoJ2.hl, delta,
             aoColidirParedeJ2);
     }
 }

@@ -114,6 +114,7 @@ function construirParedesPadrao(grupo, ARENA, mapa) {
         var parede = new THREE.Mesh(geoParede, matParede);
         parede.position.set(cfg.pos[0], cfg.pos[1], cfg.pos[2]);
         parede.rotation.set(cfg.rot[0], cfg.rot[1], cfg.rot[2]);
+        parede.userData.isObstacle = true; // Tornar as paredes sólidas para colisão
         grupo.add(parede);
         var edges = new THREE.EdgesGeometry(geoParede);
         var outline = new THREE.LineSegments(edges, matOutline);

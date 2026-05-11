@@ -148,6 +148,24 @@ function construirParedesJungle(grupo, ARENA) {
             cursor += largura * 0.75;
         }
     }
+    // Criar 4 caixas invisíveis lisas para atuar como hitbox da parede interna
+    var matInvisivel = new THREE.MeshBasicMaterial({ visible: false });
+    var hitboxEspessura = 2;
+    var margemInterna = metade - 0.5;
+
+    var hitboxes = [
+        { pos: [0, 5, margemInterna + hitboxEspessura/2], tam: [ARENA, 10, hitboxEspessura] },
+        { pos: [0, 5, -margemInterna - hitboxEspessura/2], tam: [ARENA, 10, hitboxEspessura] },
+        { pos: [margemInterna + hitboxEspessura/2, 5, 0], tam: [hitboxEspessura, 10, ARENA] },
+        { pos: [-margemInterna - hitboxEspessura/2, 5, 0], tam: [hitboxEspessura, 10, ARENA] }
+    ];
+
+    hitboxes.forEach(hb => {
+        var caixa = new THREE.Mesh(new THREE.BoxGeometry(hb.tam[0], hb.tam[1], hb.tam[2]), matInvisivel);
+        caixa.position.set(hb.pos[0], hb.pos[1], hb.pos[2]);
+        caixa.userData.isObstacle = true;
+        grupo.add(caixa);
+    });
 }
 
 function construirArvoresJungle(grupo, ARENA) {

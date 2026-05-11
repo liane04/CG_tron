@@ -432,6 +432,7 @@ function criarTorreGlifos(posicao, loader) {
     corpo.position.y = 6;
     corpo.castShadow = true;
     corpo.receiveShadow = true;
+    corpo.userData.isObstacle = true; // Hitbox justa para o corpo da torre
     grupo.add(corpo);
 
     // 3. CONTORNOS NEON AMARELO
@@ -478,7 +479,6 @@ function criarTorreGlifos(posicao, loader) {
     grupo.userData.pixels = grupoPixels;
 
     grupo.position.copy(posicao);
-    grupo.userData.isObstacle = true;
     return grupo;
 }
 

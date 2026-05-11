@@ -60,6 +60,7 @@ export function adicionarObjetosSpace(grupo, ARENA, loader) {
         hudObstaculo.userData.baseY = 1.6;
         grupo.add(hudObstaculo);
     }
+
 }
 
 
@@ -143,95 +144,6 @@ export function atualizarSpace(delta) {
         }
         
     });
-}
-
-/**
- * Constrói um pilar com rachaduras neon e blocos flutuantes orbitais.
- * Usa apenas BoxGeometry e CylinderGeometry.
- */
-function construirPilarTecnologico(posicao) {
-    const pilarGrupo = new THREE.Group();
-    pilarGrupo.position.copy(posicao);
-
-    // 1. Corpo Principal do Pilar (Cilindro)
-    const geoCorpo = new THREE.CylinderGeometry(1.2, 1.5, 12, 8);
-    const matCorpo = new THREE.MeshStandardMaterial({ 
-        color: 0x050505, 
-        roughness: 0.1, 
-        metalness: 0.8 
-    });
-    const corpo = new THREE.Mesh(geoCorpo, matCorpo);
-    corpo.position.y = 6; // Metade da altura para assentar no chão
-    corpo.castShadow = true;
-    corpo.receiveShadow = true;
-    pilarGrupo.add(corpo);
-
-    // Hitbox invisível usando o mesmo truque (ligeiramente mais pequena)
-    const matInvisivel = new THREE.MeshBasicMaterial({ visible: false });
-    const hitboxPilar = new THREE.Mesh(geoCorpo, matInvisivel);
-    hitboxPilar.position.copy(corpo.position);
-    hitboxPilar.scale.set(0.75, 1.0, 0.75);
-    hitboxPilar.userData.isObstacle = true;
-    pilarGrupo.add(hitboxPilar);
-
-    // 2. Materiais Neon
-    const matNeon = new THREE.MeshStandardMaterial({
-        color: 0x00ffff,
-        emissive: 0x00ffff,
-        emissiveIntensity: 3,
-        toneMapped: false
-    });
-
-    // 3. Rachaduras/Linhas de Energia (BoxGeometry muito finas)
-    for (let i = 0; i < 6; i++) {
-        const altura = 1 + Math.random() * 4;
-        const geoLinha = new THREE.BoxGeometry(0.1, altura, 1.3); // O 1.3 faz "sair" um pouco do cilindro
-        const linha = new THREE.Mesh(geoLinha, matNeon);
-        
-        linha.position.y = 2 + Math.random() * 8;
-        linha.rotation.y = (i / 6) * Math.PI * 2;
-        pilarGrupo.add(linha);
-    }
-
-    // 4. Anéis de Energia (Feitos com cilindros ocos ou caixas em círculo)
-    // Como Ring/Torus são proibidos, usamos 4 Boxes pequenas para simular um anel quadrado
-    const anelGrupo = new THREE.Group();
-    anelGrupo.position.y = 10;
-    
-    for (let j = 0; j < 4; j++) {
-        const segmento = new THREE.Mesh(new THREE.BoxGeometry(2.5, 0.1, 0.1), matNeon);
-        segmento.rotation.y = (j * Math.PI) / 2;
-        segmento.position.set(
-            Math.cos(j * Math.PI / 2) * 1.5,
-            0,
-            Math.sin(j * Math.PI / 2) * 1.5
-        );
-        anelGrupo.add(segmento);
-    }
-    pilarGrupo.add(anelGrupo);
-
-    // 5. Partículas Orbitais (Pequenos cubos que vão rodar)
-    const orbitaGrupo = new THREE.Group();
-    orbitaGrupo.position.y = 6;
-    
-    for (let k = 0; k < 12; k++) {
-        const cubo = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, 0.3), matNeon);
-        const raio = 2.5 + Math.random() * 1.5;
-        const angulo = Math.random() * Math.PI * 2;
-        
-        cubo.position.set(
-            Math.cos(angulo) * raio,
-            (Math.random() - 0.5) * 10,
-            Math.sin(angulo) * raio
-        );
-        orbitaGrupo.add(cubo);
-    }
-    pilarGrupo.add(orbitaGrupo);
-    
-    // Adicionar à lista global para o loop animar
-    blocosOrbitais.push(orbitaGrupo);
-
-    return pilarGrupo;
 }
 
 /**

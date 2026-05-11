@@ -44,12 +44,29 @@ var listenersRegistados = false;
 function aoPremir(e) {
     teclas[e.code] = true;
 
-    // Saltos — disparo único no keydown
-    if ((e.code === 'ShiftLeft' || e.code === 'ShiftRight') && estadoJ1 && !estadoJ1.saltando && !pausadoJ1) {
+    // Saltos — disparo único no keydown.
+    // Nunca disparar saltos para um jogador controlado por IA (a IA decide os
+    // seus próprios saltos). Em single-player, qualquer tecla de salto serve
+    // para o humano, evitando que carregar em Space faça saltar o adversário IA.
+    var ehShift = (e.code === 'ShiftLeft' || e.code === 'ShiftRight');
+    var ehSpace = (e.code === 'Space');
+    if (!ehShift && !ehSpace) return;
+
+    if (ehShift && estadoJ1 && !estadoJ1.saltando && !pausadoJ1 && !iaAtivaJ1) {
         estadoJ1.saltando = true;
         estadoJ1.tSalto = 0;
     }
-    if (e.code === 'Space' && estadoJ2 && !estadoJ2.saltando && !pausadoJ2) {
+    if (ehSpace && estadoJ2 && !estadoJ2.saltando && !pausadoJ2 && !iaAtivaJ2) {
+        estadoJ2.saltando = true;
+        estadoJ2.tSalto = 0;
+    }
+    // Single-player: Space salta o J1 humano quando o J2 é IA;
+    // e Shift salta o J2 humano quando o J1 é IA.
+    if (ehSpace && iaAtivaJ2 && !iaAtivaJ1 && estadoJ1 && !estadoJ1.saltando && !pausadoJ1) {
+        estadoJ1.saltando = true;
+        estadoJ1.tSalto = 0;
+    }
+    if (ehShift && iaAtivaJ1 && !iaAtivaJ2 && estadoJ2 && !estadoJ2.saltando && !pausadoJ2) {
         estadoJ2.saltando = true;
         estadoJ2.tSalto = 0;
     }

@@ -54,6 +54,15 @@ function makePodium() {
     return g;
 }
 
+function makeSpotlight(color) {
+    var spot = new THREE.SpotLight(color, 0.55, 16, Math.PI * 0.18, 0.4, 1.2);
+    spot.position.set(0, 7, 0);
+    var target = new THREE.Object3D();
+    target.position.set(0, 0, 0);
+    spot.target = target;
+    return { spot: spot, target: target };
+}
+
 function makeStatBar(label, x, y) {
     var g = new THREE.Group();
     g.position.set(x, y, 0);
@@ -83,7 +92,7 @@ function setVehicleStats(vehicle) {
 
 function rebuildVehicleMesh() {
     var vehicle = VEHICLES[currentVehicleIndex];
-    var color = COLORS[0]; 
+    var color = COLORS[0];
     var oldRotY = currentVehicleMesh ? currentVehicleMesh.rotation.y : 0;
     if (currentVehicleMesh && currentVehicleMesh.parent) currentVehicleMesh.parent.remove(currentVehicleMesh);
     var mesh = vehicle.build(color);

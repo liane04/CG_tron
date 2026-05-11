@@ -79,7 +79,3 @@ export function criarLuzes(cena, mapa) {
 
     return luzes;
 }
-
-export function toggleLuz(luzes, tipo) {
-    luzes[tipo].visible = !luzes[tipo].visible;
-}

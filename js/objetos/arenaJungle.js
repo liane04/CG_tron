@@ -169,24 +169,24 @@ function construirParedesJungle(grupo, ARENA) {
 }
 
 function construirArvoresJungle(grupo, ARENA) {
-    var metade = ARENA / 2;
-    var num = 12;
-    var raioSeguro = 10;
-    var zonaBorda  = metade - 1.5;
+    // Posições fixas para as árvores (longe dos spawns em X=0, Z=±37)
+    const posFixas = [
+        { x: 20, z: 20 }, { x: -20, z: 20 },
+        { x: 20, z: -20 }, { x: -20, z: -20 },
+        { x: 40, z: 0 }, { x: -40, z: 0 },
+        { x: 35, z: 42 }, { x: -35, z: 42 },
+        { x: 35, z: -42 }, { x: -35, z: -42 },
+        { x: 0, z: 0 }, { x: 45, z: 25 }
+    ];
 
     var matTronco = new THREE.MeshStandardMaterial({ color: 0x3d2008, roughness: 0.9, metalness: 0.0 });
     var matCopa   = new THREE.MeshStandardMaterial({ color: 0x1a4a0a, roughness: 0.85, metalness: 0.0 });
 
-    for (var i = 0; i < num; i++) {
-        var tentativa = 0;
-        var x, z;
-        do {
-            x = (Math.random() - 0.5) * 2 * zonaBorda;
-            z = (Math.random() - 0.5) * 2 * zonaBorda;
-            tentativa++;
-        } while (Math.sqrt(x * x + z * z) < raioSeguro && tentativa < 25);
+    posFixas.forEach((pos, i) => {
+        var x = pos.x;
+        var z = pos.z;
 
-        var alturaTronco = 4 + Math.random() * 3;
+        var alturaTronco = 4 + (i % 3); // Pequena variação baseada no index
         var raioTopo     = 0.3;
         var raioBase     = 0.5;
         var arvore = new THREE.Group();
@@ -198,15 +198,15 @@ function construirArvoresJungle(grupo, ARENA) {
         tronco.receiveShadow = true;
         arvore.add(tronco);
 
-        var numCopas = 2 + Math.floor(Math.random() * 2);
+        var numCopas = 2 + (i % 2);
         for (var c = 0; c < numCopas; c++) {
-            var raioCopa = 1.5 + Math.random();
+            var raioCopa = 1.5 + (i * 0.1) % 1.0;
             var geoC = new THREE.SphereGeometry(raioCopa, 8, 6);
             var copa = new THREE.Mesh(geoC, matCopa);
             copa.position.set(
-                (Math.random() - 0.5) * 0.8,
-                alturaTronco + c * 0.9 + (Math.random() - 0.5) * 0.4,
-                (Math.random() - 0.5) * 0.8
+                Math.sin(i + c) * 0.4,
+                alturaTronco + c * 0.9 + (i % 2) * 0.2,
+                Math.cos(i + c) * 0.4
             );
             copa.scale.y = 0.7;
             copa.castShadow = true;
@@ -214,68 +214,59 @@ function construirArvoresJungle(grupo, ARENA) {
         }
 
         arvore.position.set(x, 0, z);
-        arvore.rotation.y = Math.random() * Math.PI * 2;
+        arvore.rotation.y = (i * 1.5); // Rotação fixa mas variada
         grupo.add(arvore);
 
-        // Hitbox muito pequena (invisível) apenas para o tronco, permitindo atravessar as folhas
+        // Hitbox muito pequena (invisível) apenas para o tronco
         var matInvisivel = new THREE.MeshBasicMaterial({ visible: false });
         var hitboxArvore = new THREE.Mesh(new THREE.BoxGeometry(0.5, 10, 0.5), matInvisivel);
         hitboxArvore.position.set(x, 5, z);
         hitboxArvore.userData.isObstacle = true;
         grupo.add(hitboxArvore);
-    }
+    });
 }
 
 function construirRochasJungle(grupo, ARENA) {
-    var metade = ARENA / 2;
-    var num = 10;
-    var raioSeguro = 10;
-    var zonaBorda  = metade - 1.2;
+    // Posições fixas para os aglomerados de rochas
+    const posRochas = [
+        { x: 15, z: 38 }, { x: -15, z: 38 },
+        { x: 15, z: -38 }, { x: -15, z: -38 },
+        { x: 45, z: 10 }, { x: -45, z: 10 },
+        { x: 45, z: -10 }, { x: -45, z: -10 },
+        { x: 10, z: 10 }, { x: -10, z: -10 }
+    ];
 
     var matRocha = new THREE.MeshStandardMaterial({ color: 0x3a4a2a, roughness: 0.95, metalness: 0.0 });
 
-    for (var i = 0; i < num; i++) {
-        var tentativa = 0;
-        var x, z;
-        do {
-            x = (Math.random() - 0.5) * 2 * zonaBorda;
-            z = (Math.random() - 0.5) * 2 * zonaBorda;
-            tentativa++;
-        } while (Math.sqrt(x * x + z * z) < raioSeguro && tentativa < 25);
+    posRochas.forEach((pos, i) => {
+        var x = pos.x;
+        var z = pos.z;
 
-        var quantas = 1 + Math.floor(Math.random() * 3);
+        var quantas = 2;
         for (var r = 0; r < quantas; r++) {
-            var raio = 0.4 + Math.random() * 0.8;
+            var raio = 0.6 + (r * 0.2);
             var geo = new THREE.SphereGeometry(raio, 6, 5);
             var rocha = new THREE.Mesh(geo, matRocha);
-            rocha.scale.set(
-                0.8 + Math.random() * 0.6,
-                0.5 + Math.random() * 0.5,
-                0.7 + Math.random() * 0.5
-            );
-            rocha.rotation.set(
-                Math.random() * Math.PI,
-                Math.random() * Math.PI,
-                Math.random() * Math.PI
-            );
+            rocha.scale.set(1.2, 0.6, 1.0);
+            rocha.rotation.set(r, i, 0);
             rocha.position.set(
-                x + (Math.random() - 0.5) * 1.5,
+                x + (r * 0.8),
                 raio * 0.4,
-                z + (Math.random() - 0.5) * 1.5
+                z
             );
             rocha.castShadow = true;
             rocha.receiveShadow = true;
             grupo.add(rocha);
 
-            // Hitbox muito pequena para os arbustos/rochas (metade do tamanho visual)
+            // Hitbox muito pequena para as rochas
             var matInvisivel = new THREE.MeshBasicMaterial({ visible: false });
-            var dim = raio * 0.5; // Hitbox bem menor que a rocha
+            var dim = raio * 0.6;
             var hitboxRocha = new THREE.Mesh(new THREE.BoxGeometry(dim, dim, dim), matInvisivel);
             hitboxRocha.position.copy(rocha.position);
             hitboxRocha.userData.isObstacle = true;
             grupo.add(hitboxRocha);
         }
-    }
+    });
 }
 
 function construirLianasJungle(grupo, ARENA) {

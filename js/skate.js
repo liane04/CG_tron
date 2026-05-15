@@ -83,6 +83,7 @@ export function criarSkate(corNeon = 0x00ffff) {
     const raiz = new THREE.Group();
     const hover = new THREE.Group();
     raiz.add(hover);
+    raiz.userData.tipo = 'skate';
     raiz.scale.set(ESCALA * LARGURA_MULT, ESCALA, ESCALA);
 
     // Limpar referências a skates já removidos da cena

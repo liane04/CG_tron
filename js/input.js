@@ -215,6 +215,29 @@ function atualizarJogador(veiculo, estado, fonteTeclas, teclaEsq, teclaDir, hw, 
     if (fonteTeclas[teclaEsq]) veiculo.rotation.y += VELOCIDADE_ROTACAO * delta;
     if (fonteTeclas[teclaDir]) veiculo.rotation.y -= VELOCIDADE_ROTACAO * delta;
 
+    // --- Animação Secundária (Inclinação e Vibração) ---
+    let inclinarAlvo = 0;
+    // O carro (speeder) não deve inclinar lateralmente como uma mota
+    const ehCarro = veiculo.userData && veiculo.userData.tipo === 'speeder';
+    
+    if (!ehCarro) {
+        if (fonteTeclas[teclaEsq]) inclinarAlvo = 0.35; // rad (~20 graus)
+        if (fonteTeclas[teclaDir]) inclinarAlvo = -0.35;
+    }
+    
+    // Aplicar ao modelo interior para não afetar a orientação da raiz (importante p/ trails)
+    if (veiculo.children.length > 0) {
+        const modelo = veiculo.children[0];
+        // Interpolação suave p/ inclinação (Banking)
+        modelo.rotation.z = THREE.MathUtils.lerp(modelo.rotation.z, inclinarAlvo, 0.1);
+        
+        // Vibração subtil de motor/energia (apenas se estiver ativo)
+        if (!pausadoJ1 && !pausadoJ2) {
+            const t = performance.now() * 0.001;
+            modelo.position.y = Math.sin(t * 20) * 0.02;
+        }
+    }
+
     estado.direcao.set(-Math.sin(veiculo.rotation.y), 0, -Math.cos(veiculo.rotation.y));
 
     var prevX = veiculo.position.x;
@@ -253,12 +276,34 @@ function atualizarJogador(veiculo, estado, fonteTeclas, teclaEsq, teclaDir, hw, 
 
     if (estado.saltando) {
         estado.tSalto += delta;
+        const progresso = estado.tSalto / estado.duracaoSalto;
+        
+        // Movimento vertical (Seno para arco suave)
         veiculo.position.y = estado.alturaBase +
-            estado.alturaMaxSalto * Math.sin(Math.PI * estado.tSalto / estado.duracaoSalto);
+            estado.alturaMaxSalto * Math.sin(Math.PI * progresso);
+        
+        // --- Animação de Salto (Pitch/Inclinação Frontal) ---
+        if (veiculo.children.length > 0) {
+            const modelo = veiculo.children[0];
+            // Inclina o nariz para cima ao subir e para baixo ao descer
+            const inclinarPitch = Math.cos(Math.PI * progresso) * 0.25; 
+            modelo.rotation.x = inclinarPitch;
+            
+            // Pequeno "stretch" vertical durante o pico do salto
+            const stretch = 1.0 + Math.sin(Math.PI * progresso) * 0.1;
+            modelo.scale.y = stretch;
+        }
+
         if (estado.tSalto >= estado.duracaoSalto) {
             estado.saltando = false;
             estado.tSalto = 0;
             veiculo.position.y = estado.alturaBase;
+            
+            // Resetar transformações ao aterrar
+            if (veiculo.children.length > 0) {
+                veiculo.children[0].rotation.x = 0;
+                veiculo.children[0].scale.y = 1.0;
+            }
         }
     }
 }

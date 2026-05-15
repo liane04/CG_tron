@@ -39,6 +39,7 @@ export function criarSpeeder(corNeon = 0x00ffff) {
     const raiz = new THREE.Group();
     const corpo = new THREE.Group();
     raiz.add(corpo);
+    raiz.userData.tipo = 'speeder';
     raiz.scale.set(ESCALA, ESCALA, ESCALA);
 
     // ─── Texturas PBR ──────────────────────────────────────────────────────

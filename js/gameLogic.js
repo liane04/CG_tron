@@ -27,7 +27,10 @@ const estado = {
     overlay: null,                   // div HTML do ecrã de resultado
     listenerEnter: null,
     cores: { 1: 0xff2bd6, 2: 0x00eaff },
-    gameMode: 'ai'                    // 'ai' | 'local1v1' — usado para o texto de vitória
+    gameMode: 'ai',                    // 'ai' | 'local1v1' — usado para o texto de vitória
+    timerCountdown: 0,               // tempo de contagem inicial (3, 2, 1...)
+    overlayCountdown: null,          // div HTML para a contagem
+    corCountdown: '#ffffff'          // Cor da contagem (baseada no mapa)
 };
 
 // ---------------------------------------------------------------
@@ -42,6 +45,11 @@ export function configurarGameLogic(opts) {
     estado.trailSkate = opts.trailSkate;
     if (opts.cores) Object.assign(estado.cores, opts.cores);
     if (opts.gameMode) estado.gameMode = opts.gameMode;
+    if (opts.corCountdown) {
+        estado.corCountdown = (typeof opts.corCountdown === 'number')
+            ? '#' + opts.corCountdown.toString(16).padStart(6, '0')
+            : opts.corCountdown;
+    }
 
     // Wall hits = morte. 2.º slot (cbTrail) é reservado: a colisão com trails
     // é detectada aqui (verificarColisaoTrails), não em input.js.
@@ -92,7 +100,10 @@ export function iniciarRonda() {
 
     estado.activos[1] = true;
     estado.activos[2] = true;
-    pausarTodos(false);
+    
+    // Iniciar contagem decrescente (3 segundos + margem para "GO!")
+    estado.timerCountdown = 3.5;
+    pausarTodos(true);
 }
 
 export function accionarMorte(jogadorId) {
@@ -126,12 +137,15 @@ export function atualizarGameLogic(delta) {
 
     // Adicionar pontos de trail enquanto vivos
     if (estado.activos[1] && estado.motaRef) {
-        const offset = new THREE.Vector3(0, 0, 1.8).applyQuaternion(estado.motaRef.quaternion);
+        // Se for o trail clássico (ribbon), sai do centro (Z=0). Caso contrário, sai da traseira.
+        const offZ = (estado.trailMota && estado.trailMota.id === 'ribbon') ? 0 : 1.8;
+        const offset = new THREE.Vector3(0, 0, offZ).applyQuaternion(estado.motaRef.quaternion);
         const posTrail = estado.motaRef.position.clone().add(offset);
         adicionarPonto(estado.trailMota, posTrail);
     }
     if (estado.activos[2] && estado.skateRef) {
-        const offset = new THREE.Vector3(0, 0, 1.2).applyQuaternion(estado.skateRef.quaternion);
+        const offZ = (estado.trailSkate && estado.trailSkate.id === 'ribbon') ? 0 : 1.2;
+        const offset = new THREE.Vector3(0, 0, offZ).applyQuaternion(estado.skateRef.quaternion);
         const posTrail = estado.skateRef.position.clone().add(offset);
         adicionarPonto(estado.trailSkate, posTrail);
     }
@@ -150,6 +164,18 @@ export function atualizarGameLogic(delta) {
     }
     if (estado.activos[2] && verificarColisaoDrone(estado.skateRef.position)) {
         accionarMorte(2);
+    }
+
+    // Gerir Contagem Decrescente
+    if (estado.timerCountdown > 0) {
+        estado.timerCountdown -= delta;
+        atualizarOverlayCountdown();
+        if (estado.timerCountdown <= 0) {
+            pausarTodos(false);
+        }
+        // Enquanto há contagem, não processamos colisões de trail nem explosões
+        // mas deixamos os drones/animações correrem para estabilizar o lag
+        return; 
     }
 
     // Actualizar explosões
@@ -483,4 +509,53 @@ export function limparGameLogic() {
     estado.explosoes.length = 0;
     if (estado.trailMota)  resetarTrail(estado.trailMota);
     if (estado.trailSkate) resetarTrail(estado.trailSkate);
+    if (estado.overlayCountdown) estado.overlayCountdown.style.display = 'none';
+}
+
+// ---------------------------------------------------------------
+// Overlay de Contagem
+// ---------------------------------------------------------------
+function obterOverlayCountdown() {
+    if (estado.overlayCountdown) return estado.overlayCountdown;
+    var div = document.createElement('div');
+    div.id = 'countdown-ronda';
+    div.style.cssText = [
+        'position:fixed', 'top:50%', 'left:50%',
+        'transform:translate(-50%,-50%)',
+        'font-family:Orbitron, "Courier New", monospace',
+        'font-weight:900', 'font-size:120px',
+        'text-align:center', 'pointer-events:none',
+        'z-index:2000', 'display:none',
+        'color: #ffffff',
+        'text-shadow: 0 0 20px #00ffff, 0 0 40px #00ffff'
+    ].join(';');
+    document.body.appendChild(div);
+    estado.overlayCountdown = div;
+    return div;
+}
+
+function atualizarOverlayCountdown() {
+    var ov = obterOverlayCountdown();
+    var t = estado.timerCountdown;
+
+    if (t <= 0) {
+        ov.style.display = 'none';
+        return;
+    }
+
+    ov.style.display = 'block';
+    
+    if (t > 0.5) {
+        ov.textContent = Math.ceil(t - 0.5).toString();
+        ov.style.color = estado.corCountdown;
+        ov.style.textShadow = '0 0 20px ' + estado.corCountdown + ', 0 0 40px ' + estado.corCountdown;
+    } else {
+        ov.textContent = 'GO!';
+        ov.style.color = '#00ff00';
+        ov.style.textShadow = '0 0 20px #00ff00, 0 0 40px #00ff00';
+    }
+    
+    // Efeito de pulso simples na escala
+    var scale = 1.0 + (t % 1.0) * 0.2;
+    ov.style.transform = 'translate(-50%, -50%) scale(' + scale + ')';
 }

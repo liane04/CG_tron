@@ -8,7 +8,7 @@ import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
 import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
 
 import { criarArena } from './arena.js';
-import { criarMota } from './mota.js';
+import { criarMota, atualizarMota } from './mota.js';
 import { criarSkate, atualizarSkate, destruirSkate } from './skate.js';
 import { criarSpeeder, atualizarSpeeder } from './speeder.js';
 import { inicializarInput, atualizarMotas, definirObstaculos, definirIAJ1Ativa, definirIAJ2Ativa } from './input.js';
@@ -267,7 +267,8 @@ function buildGame() {
             trailMota: trailMota,
             trailSkate: trailSkate,
             cores: { 1: corP1, 2: corP2 },
-            gameMode: modoJogoAtual
+            gameMode: modoJogoAtual,
+            corCountdown: mapa.corGrid1 || 0x00ffff
         });
         iniciarRonda();
 
@@ -282,7 +283,8 @@ function buildGame() {
             modoCamara = 'topo';
         } else {
             camaraAtiva = camaraPerspetiva;
-            modoCamara = 'livre';
+            modoCamara = 'terceiraPessoa';
+            aplicarModoCamara();
         }
 
         // Atualiza a interface GUI com as novas referências do mapa
@@ -326,6 +328,7 @@ function buildGame() {
         atualizarSpace(delta);
         atualizarDeserto(delta);
         atualizarJungle(delta);
+        atualizarMota(delta);
         atualizarSkate(delta);
         atualizarSpeeder(delta);
         if (modoJogoAtual !== 'local1v1') atualizarIA(delta);

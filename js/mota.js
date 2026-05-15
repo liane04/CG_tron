@@ -7,7 +7,31 @@ import * as THREE from 'three';
  * @param {number} corNeon   Cor hex do neon (ex: 0x00ffff para ciano)
  * @returns {THREE.Group}    Grupo pronto a adicionar à cena
  */
+// Referências para animação
+const _motaAnimData = [];
+
+export function atualizarMota(delta) {
+    const velRodas = 15; // Velocidade angular proporcional ao movimento
+    for (const d of _motaAnimData) {
+        if (!d.rodas) continue;
+        for (const r of d.rodas) {
+            // As rodas estão rodadas em Z=PI/2 para ficarem "de pé"
+            // Rodamos no eixo local X (que é o eixo lateral da roda)
+            r.rotation.x += delta * velRodas;
+        }
+    }
+}
+
 export function criarMota(corNeon = 0x00ffff) {
+    // Limpar referências mortas
+    for (let i = _motaAnimData.length - 1; i >= 0; i--) {
+        if (!_motaAnimData[i].raiz.parent && !_motaAnimData[i].raiz.children.length === 0) {
+            _motaAnimData.splice(i, 1);
+        }
+    }
+    const animData = { raiz: null, rodas: [] };
+    _motaAnimData.push(animData);
+
 
     // ─── Escala global ─────────────────────────────────────────────────────────
     const ESCALA       = 0.38;
@@ -16,6 +40,8 @@ export function criarMota(corNeon = 0x00ffff) {
     const raiz = new THREE.Group();
     const moto = new THREE.Group();
     raiz.add(moto);
+    raiz.userData.tipo = 'mota';
+    animData.raiz = raiz;
     raiz.scale.set(ESCALA * LARGURA_MULT, ESCALA, ESCALA);
 
     // ─── Carregador de texturas ─────────────────────────────────────────────────
@@ -166,6 +192,7 @@ export function criarMota(corNeon = 0x00ffff) {
         });
 
         moto.add(g);
+        animData.rodas.push(g);
     }
     criarRodaDetalhada(ZT);
     criarRodaDetalhada(ZF);

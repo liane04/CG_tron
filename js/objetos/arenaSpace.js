@@ -43,23 +43,18 @@ export function adicionarObjetosSpace(grupo, ARENA, loader) {
         grupo.add(monolito);
     });
 
-    // 3. HUDs como Obstáculos (Mini-Paredes de Vidro)
-    // Apenas 2 objetos na arena, conforme solicitado
-    const numObstaculos = 2;
-    for (let i = 0; i < numObstaculos; i++) {
-        let x, z;
-        const raioSeguro = 15;
-        do {
-            x = (Math.random() - 0.5) * 60;
-            z = (Math.random() - 0.5) * 60;
-        } while (Math.sqrt(x * x + z * z) < raioSeguro);
+    // 3. HUDs como Obstáculos (Mini-Paredes de Vidro) - Posições Fixas
+    const configHUDs = [
+        { pos: new THREE.Vector3(35, 1.6, -20), rot: Math.PI / 4 },
+        { pos: new THREE.Vector3(-30, 1.6, 25), rot: -Math.PI / 6 }
+    ];
 
-        const posHUD = new THREE.Vector3(x, 1.6, z);
-        const hudObstaculo = criarHUDHolografico(posHUD, 0x00ffff, loader);
-        hudObstaculo.rotation.y = Math.random() * Math.PI * 2;
+    configHUDs.forEach(cfg => {
+        const hudObstaculo = criarHUDHolografico(cfg.pos, 0x00ffff, loader);
+        hudObstaculo.rotation.y = cfg.rot;
         hudObstaculo.userData.baseY = 1.6;
         grupo.add(hudObstaculo);
-    }
+    });
 
 }
 
@@ -721,10 +716,22 @@ function criarDroneVigia(posicao) {
     };
     drone.add(particulas);
 
-    // 4. Luz de impacto no chão
+    // 4. Luz de impacto no chão e Anel de Hitbox Visual
     const luzImpacto = new THREE.PointLight(0x00ffff, 50, 15, 2);
     luzImpacto.position.y = -posicao.y + 1; 
     drone.add(luzImpacto);
+
+    // Anel neon que marca o perigo real no chão (Hitbox Visual)
+    const geoAnelHitbox = new THREE.TorusGeometry(0.7, 0.05, 8, 32);
+    const matAnelHitbox = new THREE.MeshBasicMaterial({ 
+        color: 0x00ffff, 
+        transparent: true, 
+        opacity: 0.8 
+    });
+    const anelHitbox = new THREE.Mesh(geoAnelHitbox, matAnelHitbox);
+    anelHitbox.rotation.x = Math.PI / 2;
+    anelHitbox.position.y = -posicao.y + 0.05;
+    drone.add(anelHitbox);
 
     drone.position.copy(posicao);
 

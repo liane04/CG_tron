@@ -4,6 +4,7 @@ import {
     definirCallbackColisao, obterLimiteArena
 } from './input.js';
 import { adicionarPonto, obterSegmentos, resetarTrail } from './trail.js';
+import { blocosOrbitais } from './objetos/arenaSpace.js';
 
 // Estado interno da ronda corrente
 const estado = {
@@ -143,6 +144,14 @@ export function atualizarGameLogic(delta) {
         accionarMorte(2);
     }
 
+    // Detectar colisão dinâmica com o Laser do Drone (Arena Space)
+    if (estado.activos[1] && verificarColisaoDrone(estado.motaRef.position)) {
+        accionarMorte(1);
+    }
+    if (estado.activos[2] && verificarColisaoDrone(estado.skateRef.position)) {
+        accionarMorte(2);
+    }
+
     // Actualizar explosões
     for (var i = estado.explosoes.length - 1; i >= 0; i--) {
         var exp = estado.explosoes[i];
@@ -195,6 +204,32 @@ function verificarColisaoTrails(posVeiculo, jogadorId) {
             var d2 = dx * dx + dz * dz;
             if (d2 > raio2) continue;
             if (d2 < thr2) return true;
+        }
+    }
+    return false;
+}
+
+// ---------------------------------------------------------------
+// Detecção de colisão dinâmica com o Drone
+// ---------------------------------------------------------------
+function verificarColisaoDrone(posVeiculo) {
+    if (!blocosOrbitais || blocosOrbitais.length === 0) return false;
+
+    for (let i = 0; i < blocosOrbitais.length; i++) {
+        const obj = blocosOrbitais[i];
+        if (obj.userData && obj.userData.tipo === 'drone') {
+            // Check de distância 2D (o laser é um cilindro vertical)
+            const dx = posVeiculo.x - obj.position.x;
+            const dz = posVeiculo.z - obj.position.z;
+            const distSq = dx * dx + dz * dz;
+
+            // O laser tem espessuraAura = 0.55. Usamos ~0.7 de raio para a hitbox ser justa.
+            // 0.7 * 0.7 = 0.49
+            if (distSq < 0.49) {
+                // Só colide se o jogador não estiver a saltar muito alto 
+                // (opcional, mas o laser vem de cima, logo deveria atingir sempre)
+                return true;
+            }
         }
     }
     return false;

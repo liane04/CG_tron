@@ -15,31 +15,32 @@ export function adicionarObjetosDeserto(grupo, ARENA, loader, mapa, loaderGLTF) 
     // --- Árvores do Deserto (Modelos 3D) ---
     construirArvoresDeserto(grupo, ARENA, loaderGLTF);
 
-    // --- Formações Rochosas ---
-    const numRochedos = 7;
-    for(let i = 0; i < numRochedos; i++) {
-        let x, z;
-        const raioSeguro = 10;
-        const zonaBorda = (ARENA / 2) - 8;
-        
-        do {
-            x = (Math.random() - 0.5) * 2 * zonaBorda;
-            z = (Math.random() - 0.5) * 2 * zonaBorda;
-        } while (Math.sqrt(x * x + z * z) < raioSeguro);
+    // --- Formações Rochosas (Quadrados pretos na imagem) ---
+    const posRochedos = [
+        new THREE.Vector3(-45, 0, -35),
+        new THREE.Vector3(-10, 0, -40),
+        new THREE.Vector3(30, 0, -35),
+        new THREE.Vector3(25, 0, 0),
+        new THREE.Vector3(30, 0, 45),
+        new THREE.Vector3(-10, 0, 20),
+        new THREE.Vector3(-10, 0, 30),
+        new THREE.Vector3(-18, 0, -20), // Nova pedra perto do losango da esquerda
+        new THREE.Vector3(-32, 0, -38)  // Outra pedra perto do losango da esquerda
+    ];
+    posRochedos.forEach(pos => {
+        grupo.add(criarFormacaoRochenta(pos, loader));
+    });
 
-        grupo.add(criarFormacaoRochenta(new THREE.Vector3(x, 0, z), loader));
-    }
-
-    // --- Torres de Glifos ---
-    let t1 = criarTorreGlifos(new THREE.Vector3(25, 0, -25), loader);
-    let t2 = criarTorreGlifos(new THREE.Vector3(-25, 0, 25), loader);
+    // --- Torres de Glifos (Quadrados castanhos na imagem) ---
+    let t1 = criarTorreGlifos(new THREE.Vector3(40, 0, -40), loader);
+    let t2 = criarTorreGlifos(new THREE.Vector3(-35, 0, 30), loader);
     grupo.add(t1);
     grupo.add(t2);
     torresComMatrix.push(t1, t2);
 
-    // --- Torres de Cristal (Octaedros Empilhados) ---
-    grupo.add(criarTorreCristal(new THREE.Vector3(30, 0, 0), 3, 0xffff00, loader));
-    grupo.add(criarTorreCristal(new THREE.Vector3(-30, 0, 0), 3, 0xffff00, loader));
+    // --- Torres de Cristal (Losangolos na imagem) ---
+    grupo.add(criarTorreCristal(new THREE.Vector3(-25, 0, -25), 3, 0xffff00, loader));
+    grupo.add(criarTorreCristal(new THREE.Vector3(30, 0, 25), 3, 0xffff00, loader));
 
     // --- Pirâmide Voxel (Fundo/Horizonte) ---
     // Aumentamos os níveis para 25 e diminuímos o tamanho do cubo para detalhe voxel fino
@@ -728,25 +729,20 @@ function criarPiramideVoxel(posicao, niveis, corNeon, loader) {
 function construirArvoresDeserto(grupo, ARENA, loaderGLTF) {
     if (!loaderGLTF) return;
 
-    const numArvores = 6;
-    const raioSeguro = 10;
-    const zonaBorda = (ARENA / 2) - 5;
+    const posArvores = [
+        new THREE.Vector3(-30, 0, -48),
+        new THREE.Vector3(-40, 0, -10),
+        new THREE.Vector3(-25, 0, 5),
+        new THREE.Vector3(45, 0, -20),
+        new THREE.Vector3(-45, 0, 45),
+        new THREE.Vector3(-40, 0, 48)
+    ];
 
-    for (let i = 0; i < numArvores; i++) {
-        let x, z;
-        do {
-            x = (Math.random() - 0.5) * 2 * zonaBorda;
-            z = (Math.random() - 0.5) * 2 * zonaBorda;
-        } while (Math.sqrt(x * x + z * z) < raioSeguro);
-
+    posArvores.forEach(pos => {
         loaderGLTF.load('./models/arvoreDeserto/quiver_tree_01_4k.gltf', function (gltf) {
             const arvore = gltf.scene;
-            
-            // Ajustar escala se necessário (modelos externos podem vir gigantes ou minúsculos)
-            // Vou assumir uma escala base, mas se ficar estranho ajusto depois
             arvore.scale.set(3, 3, 3); 
-            
-            arvore.position.set(x, 0, z);
+            arvore.position.copy(pos);
             arvore.rotation.y = Math.random() * Math.PI * 2;
 
             arvore.traverse(function (node) {
@@ -756,15 +752,27 @@ function construirArvoresDeserto(grupo, ARENA, loaderGLTF) {
                 }
             });
 
+            // Anel neon mais brilhante para marcar a posição
+            const anelGeo = new THREE.TorusGeometry(1.2, 0.05, 8, 24);
+            const anelMat = new THREE.MeshBasicMaterial({ 
+                color: 0xffff00, 
+                transparent: true, 
+                opacity: 0.9 
+            });
+            const anel = new THREE.Mesh(anelGeo, anelMat);
+            anel.rotation.x = Math.PI / 2;
+            anel.position.set(pos.x, 0.02, pos.z); // Quase ao nível do chão
+            grupo.add(anel);
+
             grupo.add(arvore);
         });
 
-        // Adicionar uma hitbox invisível IMEDIATAMENTE (síncrona) 
-        // para que seja processada antes do modelo carregar
+        // Adicionar uma hitbox invisível que ocupa o interior do anel
+        // O anel tem raio 1.2, logo uma caixa de ~2.2 de largura cobre o interior
         var matInvisivel = new THREE.MeshBasicMaterial({ visible: false });
-        var hitboxArvore = new THREE.Mesh(new THREE.BoxGeometry(1.5, 10, 1.5), matInvisivel);
-        hitboxArvore.position.set(x, 5, z);
+        var hitboxArvore = new THREE.Mesh(new THREE.BoxGeometry(2.2, 10, 2.2), matInvisivel);
+        hitboxArvore.position.set(pos.x, 5, pos.z);
         hitboxArvore.userData.isObstacle = true;
         grupo.add(hitboxArvore);
-    }
+    });
 }

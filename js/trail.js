@@ -28,19 +28,44 @@ export function criarTrail(cor, comprimentoMax = 300, trailId = 'wireframe') {
         toneMapped: false
     });
 
+    // Criar geometria partilhada única para este trail
+    let baseGeo;
+    if (isCubes) {
+        const size = ESPESSURA_TRAIL * 0.8;
+        baseGeo = new THREE.BoxGeometry(size, size, size);
+    } else if (isGlitch) {
+        baseGeo = new THREE.PlaneGeometry(1, 1);
+    } else {
+        const altura = isRibbon ? ALTURA_RIBBON : ALTURA_WALL;
+        const subH = isWireframe ? 4 : 1;
+        baseGeo = new THREE.BoxGeometry(ESPESSURA_TRAIL, altura, 1, 1, subH, 1);
+        baseGeo.translate(0, altura / 2, 0.5 - 0.05);
+    }
+
+    const pool = [];
+    for (let i = 0; i <= comprimentoMax; i++) {
+        const mesh = new THREE.Mesh(baseGeo, material);
+        mesh.visible = false;
+        mesh.name = "trailSegmentoInativo";
+        group.add(mesh);
+        pool.push(mesh);
+    }
+
     return {
         id: trailId,
         cor: cor,
         maxLen: comprimentoMax,
         espessura: ESPESSURA_TRAIL,
         altura: isRibbon ? ALTURA_RIBBON : ALTURA_WALL,
-        distMin: (isCubes || isGlitch) ? 0.3 : DIST_MIN_DEFAULT, // Mais denso para glitch
+        distMin: (isCubes || isGlitch) ? 0.3 : DIST_MIN_DEFAULT,
         pontos: [],
         segmentos: [],
         ultimo: null,
         material: material,
         lineMaterial: new THREE.LineBasicMaterial({ color: cor, transparent: true, opacity: 1.0, toneMapped: false }),
-        mesh: group
+        mesh: group,
+        baseGeo: baseGeo,
+        pool: pool
     };
 }
 
@@ -55,84 +80,55 @@ export function adicionarPonto(trail, posicao) {
 
     const p = new THREE.Vector3(posicao.x, 0, posicao.z);
 
+    // Obter uma mesh da pool
+    let mesh = trail.pool.pop();
+    if (!mesh) {
+        mesh = new THREE.Mesh(trail.baseGeo, trail.material);
+        trail.mesh.add(mesh);
+    }
+
+    mesh.visible = true;
+    mesh.name = "trailSegmentoAtivo";
+
     if (trail.id === 'cubes') {
-        criarCuboDados(trail, p);
+        mesh.position.copy(p);
+        mesh.position.y = 0.4 + (Math.random() - 0.5) * 0.2;
+        mesh.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+        mesh.scale.setScalar(1.0);
     } else if (trail.id === 'glitch') {
-        criarEstilhaco(trail, p);
+        const size = 0.3 + Math.random() * 0.4;
+        mesh.position.copy(p);
+        mesh.position.x += (Math.random() - 0.5) * 0.4;
+        mesh.position.y = 0.1 + Math.random() * 0.6;
+        mesh.position.z += (Math.random() - 0.5) * 0.4;
+        mesh.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+        mesh.scale.set(size, size, 1);
     } else if (trail.ultimo) {
-        criarSegmentoMuro(trail, trail.ultimo, p);
+        const dist = trail.ultimo.distanceTo(p) + 0.1;
+        mesh.position.copy(trail.ultimo);
+        mesh.lookAt(p);
+        mesh.scale.set(1, 1, dist);
+    } else {
+        // Primeiro ponto (sem trail.ultimo), apenas esconde e guarda na pool
+        mesh.visible = false;
+        mesh.name = "trailSegmentoInativo";
+        trail.pool.push(mesh);
+        trail.pontos.push(p);
+        trail.ultimo = p;
+        return;
     }
 
     trail.pontos.push(p);
     trail.ultimo = p;
+    trail.segmentos.push(mesh);
 
     if (trail.segmentos.length > trail.maxLen) {
         const antigo = trail.segmentos.shift();
-        trail.mesh.remove(antigo);
-        // Limpar filhos se houver
-        antigo.children.forEach(c => {
-            if (c.geometry) c.geometry.dispose();
-        });
-        antigo.geometry.dispose();
+        antigo.visible = false;
+        antigo.name = "trailSegmentoInativo";
+        trail.pool.push(antigo);
         trail.pontos.shift();
     }
-}
-
-function criarCuboDados(trail, p) {
-    // Cubos mais pequenos conforme pedido para não obstruir a visão em 3ª pessoa
-    const size = trail.espessura * 0.8;
-    const geo = new THREE.BoxGeometry(size, size, size);
-    const mesh = new THREE.Mesh(geo, trail.material);
-    
-    // Posição com flutuação discreta
-    mesh.position.copy(p);
-    mesh.position.y = 0.4 + (Math.random() - 0.5) * 0.2;
-    mesh.name = "trailSegmentoAtivo";
-    
-    // Rotação aleatória inicial
-    mesh.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
-    
-    trail.mesh.add(mesh);
-    trail.segmentos.push(mesh);
-}
-
-function criarEstilhaco(trail, p) {
-    const size = 0.3 + Math.random() * 0.4;
-    const geo = new THREE.PlaneGeometry(size, size);
-    const mesh = new THREE.Mesh(geo, trail.material);
-    
-    // Spread aleatório lateral e vertical mais contido
-    mesh.position.copy(p);
-    mesh.position.x += (Math.random() - 0.5) * 0.4;
-    mesh.position.y = 0.1 + Math.random() * 0.6;
-    mesh.position.z += (Math.random() - 0.5) * 0.4;
-    
-    // Rotação caótica
-    mesh.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
-    mesh.name = "trailSegmentoAtivo";
-    
-    trail.mesh.add(mesh);
-    trail.segmentos.push(mesh);
-}
-
-function criarSegmentoMuro(trail, p1, p2) {
-    const dist = p1.distanceTo(p2) + 0.1;
-    const isWireframe = (trail.id === 'wireframe');
-    
-    const subH = isWireframe ? 4 : 1;
-    const subL = 1;
-    
-    const geo = new THREE.BoxGeometry(trail.espessura, trail.altura, dist, 1, subH, subL);
-    geo.translate(0, trail.altura / 2, dist / 2 - 0.05);
-
-    const segmento = new THREE.Mesh(geo, trail.material);
-    segmento.name = "trailSegmentoAtivo";
-    
-    segmento.position.copy(p1);
-    segmento.lookAt(p2);
-    
-    trail.mesh.add(segmento);
-    trail.segmentos.push(segmento);
 }
 
 export function obterSegmentos(trail) {
@@ -143,11 +139,9 @@ export function resetarTrail(trail) {
     if (!trail) return;
     while (trail.segmentos.length > 0) {
         const s = trail.segmentos.pop();
-        trail.mesh.remove(s);
-        s.children.forEach(c => {
-            if (c.geometry) c.geometry.dispose();
-        });
-        s.geometry.dispose();
+        s.visible = false;
+        s.name = "trailSegmentoInativo";
+        trail.pool.push(s);
     }
     trail.pontos.length = 0;
     trail.ultimo = null;
@@ -159,6 +153,7 @@ export function destruirTrail(trail, cena) {
     if (cena) cena.remove(trail.mesh);
     trail.material.dispose();
     if (trail.lineMaterial) trail.lineMaterial.dispose();
+    if (trail.baseGeo) trail.baseGeo.dispose();
 }
 
 export function atualizarTrail(trail, dt, camara) {

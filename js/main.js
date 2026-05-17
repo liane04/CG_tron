@@ -35,6 +35,9 @@ renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 document.body.appendChild(renderer.domElement);
 
+// Ativa a cache global do Three.js para texturas, modelos GLTF/OBJ e ficheiros
+THREE.Cache.enabled = true;
+
 var reloginho = new THREE.Clock();
 
 // ---------------------------------------------------------------------------
@@ -289,6 +292,9 @@ function buildGame() {
 
         // Atualiza a interface GUI com as novas referências do mapa
         updateDebugContext(luzes, cena, grupoArena);
+
+        // Pré-compilação de shaders na GPU para evitar stutter no primeiro frame
+        renderer.compile(cena, camaraAtiva);
     }
 
     function aplicarModoCamara() {

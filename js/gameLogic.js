@@ -33,6 +33,9 @@ const estado = {
     corCountdown: '#ffffff'          // Cor da contagem (baseada no mapa)
 };
 
+// Pool de explosões pré-alocadas para evitar recompilação de shaders e stresse no GC
+const poolExplosoes = [];
+
 // ---------------------------------------------------------------
 // Inicialização do controlador de jogo
 // ---------------------------------------------------------------
@@ -64,6 +67,8 @@ export function configurarGameLogic(opts) {
         };
         window.addEventListener('keydown', estado.listenerEnter);
     }
+
+    inicializarPoolExplosoes(opts.cena);
 }
 
 // ---------------------------------------------------------------
@@ -264,24 +269,23 @@ function verificarColisaoDrone(posVeiculo) {
 // ---------------------------------------------------------------
 // Explosão
 // ---------------------------------------------------------------
-function criarExplosao(posicao, cor, trail) {
+function alocarObjetoExplosao(cena) {
     var grupo = new THREE.Group();
-    grupo.position.copy(posicao);
 
     // Flash inicial — desce a 0 nos primeiros 0.15s e ilumina a arena
-    var flash = new THREE.PointLight(cor, 70, 60, 2);
+    var flash = new THREE.PointLight(0xffffff, 0, 60, 2);
     flash.position.y = 1.5;
     grupo.add(flash);
 
     // Luz de fogo persistente — pulsa irregularmente durante toda a explosão
-    var fogo = new THREE.PointLight(cor, 12, 25, 2);
+    var fogo = new THREE.PointLight(0xffffff, 0, 25, 2);
     fogo.position.y = 1.0;
     grupo.add(fogo);
 
     // Anel de choque (shockwave) — expande no plano XZ
     var ringGeo = new THREE.RingGeometry(0.1, 0.5, 48);
     var ringMat = new THREE.MeshBasicMaterial({
-        color: cor, toneMapped: false, transparent: true, opacity: 1.0,
+        color: 0xffffff, toneMapped: false, transparent: true, opacity: 1.0,
         side: THREE.DoubleSide, depthWrite: false
     });
     var ring = new THREE.Mesh(ringGeo, ringMat);
@@ -294,15 +298,9 @@ function criarExplosao(posicao, cor, trail) {
     var particulasA = [];
     for (var i = 0; i < 40; i++) {
         var matA = new THREE.MeshBasicMaterial({
-            color: cor, toneMapped: false, transparent: true, opacity: 1.0
+            color: 0xffffff, toneMapped: false, transparent: true, opacity: 1.0
         });
         var mA = new THREE.Mesh(geoA, matA);
-        var angA = Math.random() * Math.PI * 2;
-        var velHA = 8 + Math.random() * 10;   // 8–18
-        var velVA = 3 + Math.random() * 7;    // 3–10
-        mA.userData.vel = new THREE.Vector3(
-            Math.cos(angA) * velHA, velVA, Math.sin(angA) * velHA
-        );
         mA.userData.gravidade = 9.8;
         mA.position.y = 1.0;
         grupo.add(mA);
@@ -314,24 +312,19 @@ function criarExplosao(posicao, cor, trail) {
     var particulasB = [];
     for (var j = 0; j < 20; j++) {
         var matB = new THREE.MeshBasicMaterial({
-            color: cor, toneMapped: false, transparent: true, opacity: 1.0
+            color: 0xffffff, toneMapped: false, transparent: true, opacity: 1.0
         });
         var mB = new THREE.Mesh(geoB, matB);
-        var angB = Math.random() * Math.PI * 2;
-        var velHB = 15 + Math.random() * 15;  // 15–30
-        var velVB = 5 + Math.random() * 10;   // 5–15
-        mB.userData.vel = new THREE.Vector3(
-            Math.cos(angB) * velHB, velVB, Math.sin(angB) * velHB
-        );
         mB.userData.gravidade = 2.0;
         mB.position.y = 1.0;
         grupo.add(mB);
         particulasB.push(mB);
     }
 
-    estado.cena.add(grupo);
+    grupo.visible = false;
+    cena.add(grupo);
 
-    var exp = {
+    return {
         grupo: grupo,
         flash: flash,
         fogo: fogo,
@@ -344,12 +337,107 @@ function criarExplosao(posicao, cor, trail) {
         geoB: geoB,
         idade: 0,
         duracao: 2.0,
-        // Trail residual — pisca depois desaparece
-        trail: trail || null,
+        trail: null,
         trailDuracao: 1.5,
-        trailOpacOrig: trail && trail.material ? trail.material.opacity : 0,
-        trailDone: false
+        trailOpacOrig: 0,
+        trailDone: false,
+        emUso: false
     };
+}
+
+function inicializarPoolExplosoes(cena) {
+    if (poolExplosoes.length > 0 && poolExplosoes[0].grupo.parent === cena) {
+        for (var p = 0; p < poolExplosoes.length; p++) {
+            var exp = poolExplosoes[p];
+            exp.emUso = false;
+            exp.grupo.visible = false;
+            exp.flash.intensity = 0;
+            exp.fogo.intensity = 0;
+        }
+        return;
+    }
+
+    for (var p = 0; p < poolExplosoes.length; p++) {
+        var oldExp = poolExplosoes[p];
+        if (oldExp.grupo.parent) oldExp.grupo.parent.remove(oldExp.grupo);
+        for (var i = 0; i < oldExp.particulasA.length; i++) {
+            if (oldExp.particulasA[i].material) oldExp.particulasA[i].material.dispose();
+        }
+        for (var j = 0; j < oldExp.particulasB.length; j++) {
+            if (oldExp.particulasB[j].material) oldExp.particulasB[j].material.dispose();
+        }
+        if (oldExp.geoA) oldExp.geoA.dispose();
+        if (oldExp.geoB) oldExp.geoB.dispose();
+        if (oldExp.ringGeo) oldExp.ringGeo.dispose();
+        if (oldExp.ringMat) oldExp.ringMat.dispose();
+    }
+    poolExplosoes.length = 0;
+
+    for (var i = 0; i < 4; i++) {
+        poolExplosoes.push(alocarObjetoExplosao(cena));
+    }
+}
+
+function criarExplosao(posicao, cor, trail) {
+    var exp = null;
+    for (var p = 0; p < poolExplosoes.length; p++) {
+        if (!poolExplosoes[p].emUso) {
+            exp = poolExplosoes[p];
+            break;
+        }
+    }
+    if (!exp) {
+        exp = alocarObjetoExplosao(estado.cena);
+        poolExplosoes.push(exp);
+    }
+
+    exp.emUso = true;
+    exp.idade = 0;
+    exp.trail = trail || null;
+    exp.trailOpacOrig = trail && trail.material ? trail.material.opacity : 0;
+    exp.trailDone = false;
+
+    exp.grupo.position.copy(posicao);
+    exp.grupo.visible = true;
+
+    exp.flash.color.set(cor);
+    exp.flash.intensity = 70;
+    exp.fogo.color.set(cor);
+    exp.fogo.intensity = 12;
+
+    exp.ringMat.color.set(cor);
+    exp.ringMat.opacity = 1.0;
+    var s = 1.0;
+    exp.ring.scale.set(s, s, 1);
+
+    for (var i = 0; i < exp.particulasA.length; i++) {
+        var mA = exp.particulasA[i];
+        mA.position.set(0, 1.0, 0);
+        mA.material.color.set(cor);
+        mA.material.opacity = 1.0;
+
+        var angA = Math.random() * Math.PI * 2;
+        var velHA = 8 + Math.random() * 10;   // 8–18
+        var velVA = 3 + Math.random() * 7;    // 3–10
+        mA.userData.vel = new THREE.Vector3(
+            Math.cos(angA) * velHA, velVA, Math.sin(angA) * velHA
+        );
+    }
+
+    for (var j = 0; j < exp.particulasB.length; j++) {
+        var mB = exp.particulasB[j];
+        mB.position.set(0, 1.0, 0);
+        mB.material.color.set(cor);
+        mB.material.opacity = 1.0;
+
+        var angB = Math.random() * Math.PI * 2;
+        var velHB = 15 + Math.random() * 15;  // 15–30
+        var velVB = 5 + Math.random() * 10;   // 5–15
+        mB.userData.vel = new THREE.Vector3(
+            Math.cos(angB) * velHB, velVB, Math.sin(angB) * velHB
+        );
+    }
+
     estado.explosoes.push(exp);
     return exp;
 }
@@ -416,20 +504,12 @@ function atualizarExplosao(exp, delta) {
 }
 
 function destruirExplosao(exp) {
-    if (exp.grupo.parent) exp.grupo.parent.remove(exp.grupo);
+    exp.emUso = false;
+    exp.grupo.visible = false;
+    exp.flash.intensity = 0;
+    exp.fogo.intensity = 0;
 
-    for (var i = 0; i < exp.particulasA.length; i++) {
-        if (exp.particulasA[i].material) exp.particulasA[i].material.dispose();
-    }
-    for (var j = 0; j < exp.particulasB.length; j++) {
-        if (exp.particulasB[j].material) exp.particulasB[j].material.dispose();
-    }
-    if (exp.geoA) exp.geoA.dispose();
-    if (exp.geoB) exp.geoB.dispose();
-    if (exp.ringGeo) exp.ringGeo.dispose();
-    if (exp.ringMat) exp.ringMat.dispose();
-
-    // Garante que o trail não fica invisível se a explosão foi destruída a meio do piscar
+    // Garante que o trail não fica invisível se a objecto foi destruído a meio do piscar
     if (exp.trail && exp.trail.material && !exp.trailDone) {
         exp.trail.material.opacity = exp.trailOpacOrig;
     }

@@ -6,6 +6,10 @@ import {
 import { adicionarPonto, obterSegmentos, resetarTrail } from './trail.js';
 import { blocosOrbitais } from './objetos/arenaSpace.js';
 import { sfxCountdown } from './audioManager.js';
+import { definirDificuldadeIA, obterDificuldadeIA } from './ai.js';
+
+// Re-exportado para que o menu de definições possa configurar a IA sem importar ai.js
+export { definirDificuldadeIA, obterDificuldadeIA };
 
 // Estado interno da ronda corrente
 const estado = {

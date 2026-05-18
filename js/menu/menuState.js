@@ -137,6 +137,7 @@ export function initMenuState(initialSettings, opts) {
     modeSelectHandler = getModeSelectHandler({
         onConfirm: function (selection) {
             settings.gameMode = selection.modeId;
+            settings.vidasIniciais = (selection.vidasIniciais !== undefined) ? selection.vidasIniciais : 3;
             saveSettings(settings);
             // No 1v1 o P1 é o primeiro a configurar; no AI mantemos null (sem label)
             customizingPlayer = (selection.modeId === 'local1v1') ? 1 : null;

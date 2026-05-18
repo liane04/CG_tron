@@ -35,6 +35,17 @@ var hintText = null;
 var t = 0;
 var callbacks = {};
 
+// Segundo estágio: número de vidas
+var LIVES_OPTIONS = [
+    { value: 1, label: '1' },
+    { value: 3, label: '3' },
+    { value: 5, label: '5' }
+];
+var livesCards = [];
+var livesSelectedIndex = 1; // default 3
+var stage = 'mode';         // 'mode' | 'lives'
+var pendingMode = null;
+
 function buildScanlineTexture() {
     var c = document.createElement('canvas');
     c.width = 4; c.height = 256;
@@ -165,6 +176,46 @@ function makeCard(option, idx) {
     return card;
 }
 
+function makeLivesCard(option, idx) {
+    var card = new THREE.Group();
+    card.userData.option = option;
+    card.userData.index = idx;
+    card.userData.kind = 'lives';
+
+    var w = 1.6, h = 1.2;
+    var corBase = 0xff2bd6; // magenta neon para o painel de vidas
+
+    var bodyMat = new THREE.MeshBasicMaterial({
+        color: 0x0a0418, transparent: true, opacity: 0.78,
+        depthWrite: false, side: THREE.DoubleSide
+    });
+    var body = new THREE.Mesh(new THREE.PlaneGeometry(w, h), bodyMat);
+    card.add(body);
+    card.userData.frame = body;
+
+    var outerEdges = new THREE.EdgesGeometry(new THREE.PlaneGeometry(w, h));
+    var outer = new THREE.LineSegments(outerEdges, new THREE.LineBasicMaterial({
+        color: corBase, transparent: true, opacity: 0.95, toneMapped: false
+    }));
+    outer.position.z = 0.011;
+    card.add(outer);
+    card.userData.border = outer;
+
+    var corners = makeCorners(w, h, corBase);
+    corners.position.z = 0.013;
+    card.add(corners);
+
+    var label = makeTextPlane(option.label + '  HP', {
+        fontSize: 90, color: '#ffffff',
+        glowColor: '#' + corBase.toString(16).padStart(6, '0'),
+        worldHeight: 0.42, letterSpacing: 2, weight: '900', glowStrength: 1.0
+    });
+    label.position.set(0, 0.0, 0.02);
+    card.add(label);
+
+    return card;
+}
+
 export function buildModeSelect(scene) {
     group = new THREE.Group();
     group.position.set(0, 4, 0);
@@ -192,6 +243,18 @@ export function buildModeSelect(scene) {
         card.userData.baseRotation = card.rotation.clone();
         group.add(card);
         cards.push(card);
+    });
+
+    // Cartões de vidas (estágio 2) — escondidos até confirmar o modo
+    var livesSpacing = 2.0;
+    var livesStartX = -((LIVES_OPTIONS.length - 1) * livesSpacing) / 2;
+    LIVES_OPTIONS.forEach(function (opt, i) {
+        var card = makeLivesCard(opt, i);
+        card.position.set(livesStartX + i * livesSpacing, 0, 0);
+        card.userData.basePosition = card.position.clone();
+        card.visible = false;
+        group.add(card);
+        livesCards.push(card);
     });
 
     hintText = makeTextPlane(OPTIONS[0].hint, {
@@ -246,9 +309,82 @@ function highlightSelected() {
     group.add(hintText);
 }
 
+function highlightLives() {
+    livesCards.forEach(function (card, i) {
+        var sel = (i === livesSelectedIndex);
+        var s = sel ? 1.1 : 0.85;
+        tween(card.scale, { x: s, y: s, z: s }, { duration: 0.3, easing: Easing.easeOut });
+        tween(card.userData.border.material, { opacity: sel ? 1.0 : 0.4 }, { duration: 0.25 });
+        tween(card.userData.frame.material,  { opacity: sel ? 0.92 : 0.55 }, { duration: 0.25 });
+    });
+    // Hint
+    if (hintText && hintText.parent) {
+        hintText.parent.remove(hintText);
+        hintText.material.map.dispose();
+        hintText.material.dispose();
+        hintText.geometry.dispose();
+    }
+    var msg = 'PICK NUMBER OF LIVES';
+    hintText = makeTextPlane(msg, {
+        fontSize: 56, color: '#ffffff', glowColor: '#ff2bd6',
+        worldHeight: 0.32, letterSpacing: 6, weight: '700', glowStrength: 1.0
+    });
+    hintText.position.set(0, -1.85, 0);
+    group.add(hintText);
+}
+
+function enterLivesStage() {
+    stage = 'lives';
+    // Esconde cartões de modo
+    cards.forEach(function (c) { c.visible = false; });
+    // Mostra cartões de vidas
+    livesCards.forEach(function (c) { c.visible = true; });
+    // Actualiza subtítulo
+    if (subTitleText && subTitleText.parent) {
+        subTitleText.parent.remove(subTitleText);
+        subTitleText.material.map.dispose();
+        subTitleText.material.dispose();
+        subTitleText.geometry.dispose();
+    }
+    var modeLabel = OPTIONS[selectedIndex].label;
+    subTitleText = makeTextPlane('// ' + modeLabel + '  -  LIVES //', {
+        fontSize: 48, color: '#ffc8ff', glowColor: '#ff2bd6',
+        worldHeight: 0.32, letterSpacing: 4, weight: '500', glowStrength: 0.8
+    });
+    subTitleText.position.set(0, 1.95, 0);
+    group.add(subTitleText);
+    highlightLives();
+}
+
+function exitLivesStage() {
+    stage = 'mode';
+    // Mostra cartões de modo
+    cards.forEach(function (c) { c.visible = true; });
+    // Esconde cartões de vidas
+    livesCards.forEach(function (c) { c.visible = false; });
+    // Restaura subtítulo
+    if (subTitleText && subTitleText.parent) {
+        subTitleText.parent.remove(subTitleText);
+        subTitleText.material.map.dispose();
+        subTitleText.material.dispose();
+        subTitleText.geometry.dispose();
+    }
+    subTitleText = makeTextPlane('// SELECT  MODE //', {
+        fontSize: 48, color: '#a0e8ff', glowColor: '#00eaff',
+        worldHeight: 0.32, letterSpacing: 4, weight: '500', glowStrength: 0.8
+    });
+    subTitleText.position.set(0, 1.95, 0);
+    group.add(subTitleText);
+    highlightSelected();
+}
+
 export function showModeSelect(initial) {
     if (!group) return;
     group.visible = true;
+    // Reset sempre ao estágio "mode"
+    stage = 'mode';
+    livesCards.forEach(function (c) { c.visible = false; });
+    cards.forEach(function (c) { c.visible = true; });
     if (initial) {
         var idx = OPTIONS.findIndex(function (o) { return o.id === initial; });
         if (idx >= 0) selectedIndex = idx;
@@ -276,25 +412,54 @@ export function hideModeSelect() {
 export function getModeSelectHandler(handlers) {
     callbacks = handlers || {};
     return {
-        onEnter: function () { highlightSelected(); },
+        onEnter: function () {
+            stage = 'mode';
+            highlightSelected();
+        },
         onLeave: function () {},
         onKey: function (key) {
+            if (stage === 'mode') {
+                if (key === 'LEFT' || key === 'A') {
+                    selectedIndex = (selectedIndex - 1 + OPTIONS.length) % OPTIONS.length;
+                    sfxNavigate(); highlightSelected(); return true;
+                }
+                if (key === 'RIGHT' || key === 'D') {
+                    selectedIndex = (selectedIndex + 1) % OPTIONS.length;
+                    sfxNavigate(); highlightSelected(); return true;
+                }
+                if (key === 'ENTER' || key === 'SPACE') {
+                    sfxConfirm();
+                    pendingMode = OPTIONS[selectedIndex].id;
+                    enterLivesStage();
+                    return true;
+                }
+                if (key === 'ESC' || key === 'BACK') {
+                    sfxBack();
+                    if (callbacks.onBack) callbacks.onBack();
+                    return true;
+                }
+                return false;
+            }
+            // stage === 'lives'
             if (key === 'LEFT' || key === 'A') {
-                selectedIndex = (selectedIndex - 1 + OPTIONS.length) % OPTIONS.length;
-                sfxNavigate(); highlightSelected(); return true;
+                livesSelectedIndex = (livesSelectedIndex - 1 + LIVES_OPTIONS.length) % LIVES_OPTIONS.length;
+                sfxNavigate(); highlightLives(); return true;
             }
             if (key === 'RIGHT' || key === 'D') {
-                selectedIndex = (selectedIndex + 1) % OPTIONS.length;
-                sfxNavigate(); highlightSelected(); return true;
+                livesSelectedIndex = (livesSelectedIndex + 1) % LIVES_OPTIONS.length;
+                sfxNavigate(); highlightLives(); return true;
             }
             if (key === 'ENTER' || key === 'SPACE') {
                 sfxConfirm();
-                if (callbacks.onConfirm) callbacks.onConfirm({ modeId: OPTIONS[selectedIndex].id });
+                if (callbacks.onConfirm) callbacks.onConfirm({
+                    modeId: pendingMode,
+                    vidasIniciais: LIVES_OPTIONS[livesSelectedIndex].value
+                });
                 return true;
             }
             if (key === 'ESC' || key === 'BACK') {
                 sfxBack();
-                if (callbacks.onBack) callbacks.onBack();
+                exitLivesStage();
                 return true;
             }
             return false;
@@ -304,35 +469,65 @@ export function getModeSelectHandler(handlers) {
             var root = obj;
             while (root && !root.userData.option) root = root.parent;
             if (!root) return;
-            if (root.userData.index !== selectedIndex) {
-                selectedIndex = root.userData.index;
-                sfxNavigate();
-                highlightSelected();
+            if (stage === 'mode' && root.userData.kind !== 'lives') {
+                if (root.userData.index !== selectedIndex) {
+                    selectedIndex = root.userData.index;
+                    sfxNavigate();
+                    highlightSelected();
+                }
+            } else if (stage === 'lives' && root.userData.kind === 'lives') {
+                if (root.userData.index !== livesSelectedIndex) {
+                    livesSelectedIndex = root.userData.index;
+                    sfxNavigate();
+                    highlightLives();
+                }
             }
         },
         onClick: function (obj) {
             var root = obj;
             while (root && !root.userData.option) root = root.parent;
             if (!root) return;
-            selectedIndex = root.userData.index;
-            highlightSelected();
-            sfxConfirm();
-            if (callbacks.onConfirm) callbacks.onConfirm({ modeId: OPTIONS[selectedIndex].id });
+            if (stage === 'mode' && root.userData.kind !== 'lives') {
+                selectedIndex = root.userData.index;
+                highlightSelected();
+                sfxConfirm();
+                pendingMode = OPTIONS[selectedIndex].id;
+                enterLivesStage();
+            } else if (stage === 'lives' && root.userData.kind === 'lives') {
+                livesSelectedIndex = root.userData.index;
+                highlightLives();
+                sfxConfirm();
+                if (callbacks.onConfirm) callbacks.onConfirm({
+                    modeId: pendingMode,
+                    vidasIniciais: LIVES_OPTIONS[livesSelectedIndex].value
+                });
+            }
         }
     };
 }
 
 export function getModeSelectHoverables() {
-    return cards.map(function (c) { return c.userData.frame; }).filter(Boolean);
+    var modeFrames = cards.map(function (c) { return c.userData.frame; }).filter(Boolean);
+    var livesFrames = livesCards.map(function (c) { return c.userData.frame; }).filter(Boolean);
+    return modeFrames.concat(livesFrames);
 }
 
 export function updateModeSelect(dt) {
     if (!group || !group.visible) return;
     t += dt;
-    cards.forEach(function (card, i) {
-        if (i === selectedIndex) {
-            var base = card.userData.basePosition;
-            card.position.y = base.y + Math.sin(t * 2.0) * 0.1;
-        }
-    });
+    if (stage === 'mode') {
+        cards.forEach(function (card, i) {
+            if (i === selectedIndex) {
+                var base = card.userData.basePosition;
+                card.position.y = base.y + Math.sin(t * 2.0) * 0.1;
+            }
+        });
+    } else {
+        livesCards.forEach(function (card, i) {
+            if (i === livesSelectedIndex) {
+                var base = card.userData.basePosition;
+                card.position.y = base.y + Math.sin(t * 2.0) * 0.08;
+            }
+        });
+    }
 }

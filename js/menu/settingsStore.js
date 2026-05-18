@@ -28,7 +28,8 @@ var defaults = {
     track: {
         mapId: 'space'
     },
-    gameMode: 'ai'                 // 'ai' (single-player vs IA) | 'local1v1' (split-keyboard, top-down)
+    gameMode: 'ai',                // 'ai' (single-player vs IA) | 'local1v1' (split-keyboard, top-down)
+    vidasIniciais: 3               // 1 | 3 | 5 — quantas vidas cada jogador começa por ronda
 };
 
 function deepClone(o) { return JSON.parse(JSON.stringify(o)); }

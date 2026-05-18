@@ -78,6 +78,30 @@ export function sfxConfirm()  { envelopedTone(880, 0.05, 'square', 0.22); setTim
 export function sfxBack()     { envelopedTone(440, 0.07, 'square', 0.18); setTimeout(function () { envelopedTone(330, 0.08, 'square', 0.16); }, 60); }
 export function sfxToggle()   { envelopedTone(540, 0.05, 'sine',   0.18); }
 
+// Countdown da ronda: 'beep' para 3/2/1, 'go' para o GO! (sweep ascendente).
+export function sfxCountdown(tipo) {
+    var c = ensureCtx();
+    if (!c) return;
+    if (tipo === 'go') {
+        // Sweep 1320Hz → 1760Hz em 0.15s, square wave
+        var osc = c.createOscillator();
+        var gain = c.createGain();
+        osc.type = 'square';
+        var now = c.currentTime;
+        var dur = 0.15;
+        osc.frequency.setValueAtTime(1320, now);
+        osc.frequency.linearRampToValueAtTime(1760, now + dur);
+        gain.gain.setValueAtTime(0, now);
+        gain.gain.linearRampToValueAtTime(0.28, now + 0.01);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + dur);
+        osc.connect(gain).connect(sfxGain);
+        osc.start(now);
+        osc.stop(now + dur + 0.05);
+    } else {
+        envelopedTone(880, 0.06, 'square', 0.22);
+    }
+}
+
 // ─── Música de fundo (MP3) ──────────────────────────────────────────────────
 
 /**

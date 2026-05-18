@@ -5,6 +5,7 @@ import {
 } from './input.js';
 import { adicionarPonto, obterSegmentos, resetarTrail } from './trail.js';
 import { blocosOrbitais } from './objetos/arenaSpace.js';
+import { sfxCountdown } from './audioManager.js';
 
 // Estado interno da ronda corrente
 const estado = {
@@ -28,9 +29,24 @@ const estado = {
     listenerEnter: null,
     cores: { 1: 0xff2bd6, 2: 0x00eaff },
     gameMode: 'ai',                    // 'ai' | 'local1v1' — usado para o texto de vitória
-    timerCountdown: 0,               // tempo de contagem inicial (3, 2, 1...)
-    overlayCountdown: null,          // div HTML para a contagem
-    corCountdown: '#ffffff'          // Cor da contagem (baseada no mapa)
+
+    // --- Contagem decrescente 3 → 2 → 1 → GO! ---
+    emContagem: false,
+    valorContagem: 3,                // 3, 2, 1, 0 (=GO!)
+    timerContagem: 0,
+    overlayContagem: null,           // div HTML do overlay de countdown
+
+    // --- Sistema de vidas / partida ---
+    vidas: { 1: 3, 2: 3 },
+    vidasIniciais: 3,
+    numRonda: 0,
+    tempoRonda: 0,                   // segundos decorridos na ronda actual
+    tempoSobrevivencia: { 1: 0, 2: 0 }, // instante de morte por jogador
+    recordeSobrevivencia: 0,         // melhor tempo single-player (localStorage)
+    partidaTerminada: false,
+    vencedorPartida: 0,
+    onMatchEnd: null,                // callback ao fim da partida
+    hudVidas: null                   // div HTML do HUD de corações
 };
 
 // Pool de explosões pré-alocadas para evitar recompilação de shaders e stresse no GC
@@ -48,11 +64,22 @@ export function configurarGameLogic(opts) {
     estado.trailSkate = opts.trailSkate;
     if (opts.cores) Object.assign(estado.cores, opts.cores);
     if (opts.gameMode) estado.gameMode = opts.gameMode;
-    if (opts.corCountdown) {
-        estado.corCountdown = (typeof opts.corCountdown === 'number')
-            ? '#' + opts.corCountdown.toString(16).padStart(6, '0')
-            : opts.corCountdown;
-    }
+
+    // Vidas / partida — reset a cada novo jogo
+    estado.vidasIniciais = (opts.vidasIniciais !== undefined) ? opts.vidasIniciais : 3;
+    estado.vidas = { 1: estado.vidasIniciais, 2: estado.vidasIniciais };
+    estado.numRonda = 0;
+    estado.partidaTerminada = false;
+    estado.vencedorPartida = 0;
+    estado.onMatchEnd = opts.onMatchEnd || null;
+
+    // Recorde de sobrevivência single-player
+    var rec = parseFloat(localStorage.getItem('neonDrive_record'));
+    estado.recordeSobrevivencia = isNaN(rec) ? 0 : rec;
+
+    injetarStylesCountdown();
+    atualizarHUD();
+    mostrarHUD();
 
     // Wall hits = morte. 2.º slot (cbTrail) é reservado: a colisão com trails
     // é detectada aqui (verificarColisaoTrails), não em input.js.
@@ -61,7 +88,7 @@ export function configurarGameLogic(opts) {
 
     if (!estado.listenerEnter) {
         estado.listenerEnter = function (e) {
-            if (e.code === 'Enter' && estado.aguardarEnter) {
+            if (e.code === 'Enter' && estado.aguardarEnter && !estado.partidaTerminada) {
                 iniciarRonda();
             }
         };
@@ -76,6 +103,7 @@ export function configurarGameLogic(opts) {
 // ---------------------------------------------------------------
 export function iniciarRonda() {
     if (!estado.cena) return;
+    if (estado.partidaTerminada) return;
 
     esconderResultado();
     estado.aguardarEnter = false;
@@ -83,6 +111,9 @@ export function iniciarRonda() {
     estado.timerResultado = 0;
     estado.timerNovaRonda = 0;
     estado.venceuId = 0;
+    estado.tempoRonda = 0;
+    estado.tempoSobrevivencia = { 1: 0, 2: 0 };
+    estado.numRonda += 1;
 
     // Limpar trails
     resetarTrail(estado.trailMota);
@@ -105,18 +136,31 @@ export function iniciarRonda() {
 
     estado.activos[1] = true;
     estado.activos[2] = true;
-    
-    // Iniciar contagem decrescente (3 segundos + margem para "GO!")
-    estado.timerCountdown = 3.5;
+
+    atualizarHUD();
+
+    // Iniciar contagem decrescente discreta: 3 → 2 → 1 → GO!
+    estado.emContagem = true;
+    estado.valorContagem = 3;
+    estado.timerContagem = 1.0;
     pausarTodos(true);
+    mostrarContagem(3);
 }
 
 export function accionarMorte(jogadorId) {
+    if (estado.emContagem) return;
     if (estado.rondaTerminada) return;
     if (!estado.activos[jogadorId]) return;
 
     estado.activos[jogadorId] = false;
     pausarJogador(jogadorId, true);
+
+    // Registar tempo de sobrevivência deste jogador
+    estado.tempoSobrevivencia[jogadorId] = estado.tempoRonda;
+
+    // Perder uma vida
+    estado.vidas[jogadorId] = Math.max(0, estado.vidas[jogadorId] - 1);
+    atualizarHUD(jogadorId);
 
     var alvo = jogadorId === 1 ? estado.motaRef : estado.skateRef;
     var trailMorto = jogadorId === 1 ? estado.trailMota : estado.trailSkate;
@@ -127,11 +171,26 @@ export function accionarMorte(jogadorId) {
         alvo.visible = false;
     }
 
-    // O outro jogador venceu
+    // O outro jogador venceu a ronda
     estado.rondaTerminada = true;
     estado.venceuId = jogadorId === 1 ? 2 : 1;
-    estado.timerResultado = 2.0; // tempo até mostrar overlay
-    estado.timerNovaRonda  = 5.0; // 2s morte + 3s leitura
+
+    // Single-player: J1 é o humano; se ele sobreviveu (i.e. morreu o J2 IA), regista recorde
+    if (estado.gameMode === 'ai' && estado.venceuId === 1 && estado.tempoRonda > estado.recordeSobrevivencia) {
+        estado.recordeSobrevivencia = estado.tempoRonda;
+        try { localStorage.setItem('neonDrive_record', String(estado.tempoRonda)); } catch (e) {}
+    }
+
+    // Fim de partida?
+    if (estado.vidas[jogadorId] <= 0) {
+        estado.partidaTerminada = true;
+        estado.vencedorPartida = estado.venceuId;
+        estado.timerResultado = 2.0;
+        estado.timerNovaRonda  = 8.0; // 2s morte + 6s leitura do GAME OVER
+    } else {
+        estado.timerResultado = 2.0;
+        estado.timerNovaRonda  = 5.0; // 2s morte + 3s leitura
+    }
 }
 
 // ---------------------------------------------------------------
@@ -139,6 +198,30 @@ export function accionarMorte(jogadorId) {
 // ---------------------------------------------------------------
 export function atualizarGameLogic(delta) {
     if (!estado.cena) return;
+
+    // Contagem decrescente discreta: 3 → 2 → 1 → GO! → libertar jogadores
+    if (estado.emContagem) {
+        estado.timerContagem -= delta;
+        if (estado.timerContagem <= 0) {
+            estado.valorContagem -= 1;
+            if (estado.valorContagem < 0) {
+                // Já passou o GO! — liberta os jogadores e termina o countdown
+                estado.emContagem = false;
+                esconderContagem();
+                pausarTodos(false);
+            } else {
+                // 3, 2, 1 ficam 1.0s cada; o GO! fica 0.65s
+                estado.timerContagem = estado.valorContagem > 0 ? 1.0 : 0.65;
+                mostrarContagem(estado.valorContagem);
+            }
+        }
+        return;
+    }
+
+    // Cronómetro da ronda (só conta enquanto a ronda decorre)
+    if (!estado.rondaTerminada) {
+        estado.tempoRonda += delta;
+    }
 
     // Adicionar pontos de trail enquanto vivos
     if (estado.activos[1] && estado.motaRef) {
@@ -171,18 +254,6 @@ export function atualizarGameLogic(delta) {
         accionarMorte(2);
     }
 
-    // Gerir Contagem Decrescente
-    if (estado.timerCountdown > 0) {
-        estado.timerCountdown -= delta;
-        atualizarOverlayCountdown();
-        if (estado.timerCountdown <= 0) {
-            pausarTodos(false);
-        }
-        // Enquanto há contagem, não processamos colisões de trail nem explosões
-        // mas deixamos os drones/animações correrem para estabilizar o lag
-        return; 
-    }
-
     // Actualizar explosões
     for (var i = estado.explosoes.length - 1; i >= 0; i--) {
         var exp = estado.explosoes[i];
@@ -204,7 +275,15 @@ export function atualizarGameLogic(delta) {
     }
     if (estado.aguardarEnter) {
         estado.timerNovaRonda -= delta;
-        if (estado.timerNovaRonda <= 0) iniciarRonda();
+        if (estado.timerNovaRonda <= 0) {
+            if (estado.partidaTerminada) {
+                var cb = estado.onMatchEnd;
+                limparGameLogic();
+                if (cb) cb();
+            } else {
+                iniciarRonda();
+            }
+        }
     }
 }
 
@@ -718,44 +797,130 @@ function obterOverlay() {
         'text-align:center', 'pointer-events:none',
         'z-index:1500', 'display:none'
     ].join(';');
-    var sub = document.createElement('div');
-    sub.style.cssText = [
-        'font-family:"Share Tech Mono", monospace',
-        'font-weight:400', 'font-size:18px', 'letter-spacing:4px',
-        'margin-top:18px', 'opacity:0.85'
+    var titulo = document.createElement('div');
+    titulo.className = 'rr-titulo';
+    var subVitoria = document.createElement('div');
+    subVitoria.className = 'rr-subvitoria';
+    subVitoria.style.cssText = [
+        'font-family:Orbitron, monospace', 'font-weight:700',
+        'font-size:22px', 'letter-spacing:4px', 'margin-top:14px'
     ].join(';');
-    sub.textContent = 'NEW ROUND IN 3s   [ENTER]';
-    div.appendChild(document.createElement('span'));
+    var linhaCoracoes = document.createElement('div');
+    linhaCoracoes.className = 'rr-coracoes';
+    linhaCoracoes.style.cssText = [
+        'font-family:Orbitron, monospace', 'font-weight:700',
+        'font-size:24px', 'letter-spacing:6px', 'margin-top:14px'
+    ].join(';');
+    var linhaSobrevivencia = document.createElement('div');
+    linhaSobrevivencia.className = 'rr-sobrev';
+    linhaSobrevivencia.style.cssText = [
+        'font-family:"Share Tech Mono", monospace', 'font-weight:400',
+        'font-size:16px', 'letter-spacing:3px', 'margin-top:10px', 'opacity:0.85'
+    ].join(';');
+    var sub = document.createElement('div');
+    sub.className = 'rr-sub';
+    sub.style.cssText = [
+        'font-family:"Share Tech Mono", monospace', 'font-weight:400',
+        'font-size:18px', 'letter-spacing:4px', 'margin-top:14px', 'opacity:0.85'
+    ].join(';');
+    div.appendChild(titulo);
+    div.appendChild(subVitoria);
+    div.appendChild(linhaCoracoes);
+    div.appendChild(linhaSobrevivencia);
     div.appendChild(sub);
     document.body.appendChild(div);
     estado.overlay = div;
     return div;
 }
 
+function corHexJogador(id) {
+    var corNum = estado.cores[id];
+    return (corNum !== undefined)
+        ? '#' + corNum.toString(16).padStart(6, '0')
+        : (id === 1 ? '#00eaff' : '#ff2bd6');
+}
+
+function nomeJogador(id) {
+    if (estado.gameMode === 'local1v1') return id === 1 ? 'PLAYER 1' : 'PLAYER 2';
+    return id === 1 ? 'PLAYER' : 'AI';
+}
+
 function mostrarResultado(venceuId) {
     var ov = obterOverlay();
-    // No modo single-player o J1 é o humano e o J2 é a IA; no 1v1 ambos são
-    // humanos e mostramos "PLAYER 1/2 WINS" para o vencedor identificar-se.
-    var texto;
-    if (estado.gameMode === 'local1v1') {
-        texto = venceuId === 1 ? 'PLAYER 1 WINS' : 'PLAYER 2 WINS';
+    var corVenc = corHexJogador(venceuId);
+    var corP1 = corHexJogador(1);
+    var corP2 = corHexJogador(2);
+
+    var titulo = ov.querySelector('.rr-titulo');
+    var subVit = ov.querySelector('.rr-subvitoria');
+    var coracoes = ov.querySelector('.rr-coracoes');
+    var sobrev = ov.querySelector('.rr-sobrev');
+    var sub = ov.querySelector('.rr-sub');
+
+    if (estado.partidaTerminada) {
+        // ─── GAME OVER ────────────────────────────────────────────
+        titulo.textContent = 'GAME OVER';
+        titulo.style.fontSize = '86px';
+        titulo.style.color = '#ffffff';
+        titulo.style.textShadow = '0 0 12px #ffffff, 0 0 24px #ffffff, 0 0 48px #ffffff';
+
+        var nomeVenc = nomeJogador(venceuId);
+        subVit.textContent = nomeVenc + ' WINS THE MATCH';
+        subVit.style.color = corVenc;
+        subVit.style.textShadow = '0 0 8px ' + corVenc + ', 0 0 16px ' + corVenc;
+        subVit.style.display = 'block';
+
+        var vidasV = estado.vidas[venceuId];
+        var coracoesHtml = '';
+        for (var i = 0; i < vidasV; i++) coracoesHtml += '<span style="color:' + corVenc + ';text-shadow:0 0 6px ' + corVenc + '">♥</span>';
+        coracoesHtml += ' <span style="opacity:0.65;letter-spacing:4px">vs</span> ';
+        var corPerd = corHexJogador(venceuId === 1 ? 2 : 1);
+        coracoesHtml += '<span style="color:' + corPerd + ';opacity:0.5">♡</span>';
+        coracoes.innerHTML = coracoesHtml;
+        coracoes.style.display = 'block';
+
+        sobrev.style.display = 'none';
+        sub.textContent = 'RETURNING TO MENU IN 6s';
+        sub.style.display = 'block';
     } else {
-        texto = venceuId === 1 ? 'PLAYER WINS' : 'AI WINS';
+        // ─── Fim de ronda normal ───────────────────────────────────
+        var texto = (estado.gameMode === 'local1v1')
+            ? (venceuId === 1 ? 'PLAYER 1 WINS' : 'PLAYER 2 WINS')
+            : (venceuId === 1 ? 'PLAYER WINS' : 'AI WINS');
+        titulo.textContent = texto;
+        titulo.style.fontSize = '72px';
+        titulo.style.color = corVenc;
+        titulo.style.textShadow = '0 0 12px ' + corVenc + ', 0 0 24px ' + corVenc + ', 0 0 48px ' + corVenc;
+
+        subVit.style.display = 'none';
+
+        // Linha de corações: P1 ♥♥♡ vs P2 ♥♥♥
+        function fila(id, cor) {
+            var total = estado.vidasIniciais;
+            var v = estado.vidas[id];
+            var html = '<span style="color:' + cor + ';margin-right:6px">' + (id === 1 ? 'P1' : 'P2') + '</span>';
+            for (var i = 0; i < total; i++) {
+                if (i < v) html += '<span style="color:' + cor + ';text-shadow:0 0 6px ' + cor + '">♥</span>';
+                else      html += '<span style="color:' + cor + ';opacity:0.35">♡</span>';
+            }
+            return html;
+        }
+        coracoes.innerHTML = fila(1, corP1) + ' &nbsp;&nbsp; ' + fila(2, corP2);
+        coracoes.style.display = 'block';
+
+        // Linha de sobrevivência
+        var tDecedido = estado.tempoRonda;
+        var linhaSob = 'SURVIVED ' + tDecedido.toFixed(1) + 's';
+        if (estado.gameMode === 'ai' && venceuId === 1 && tDecedido >= estado.recordeSobrevivencia && tDecedido > 0) {
+            linhaSob += '   ★ NEW RECORD';
+        }
+        sobrev.textContent = linhaSob;
+        sobrev.style.display = 'block';
+
+        sub.textContent = 'NEW ROUND IN 3s   [ENTER]';
+        sub.style.display = 'block';
     }
-    // Usa a cor real do vencedor (definida em main.js via cores: { 1, 2 }).
-    // Cai para os tons clássicos cyan/magenta se por algum motivo não houver.
-    var corNum = estado.cores[venceuId];
-    var corHex = (corNum !== undefined)
-        ? '#' + corNum.toString(16).padStart(6, '0')
-        : (venceuId === 1 ? '#00eaff' : '#ff2bd6');
-    var titulo = ov.firstChild;
-    titulo.textContent = texto;
-    titulo.style.color = corHex;
-    titulo.style.textShadow =
-        '0 0 12px ' + corHex + ',' +
-        '0 0 24px ' + corHex + ',' +
-        '0 0 48px ' + corHex;
-    ov.style.color = corHex;
+
     ov.style.display = 'block';
 }
 
@@ -772,58 +937,183 @@ export function limparGameLogic() {
     estado.activos[2] = false;
     estado.rondaTerminada = false;
     estado.aguardarEnter = false;
+    estado.emContagem = false;
+    estado.partidaTerminada = false;
     esconderResultado();
+    esconderContagem();
+    esconderHUD();
     for (var i = 0; i < estado.explosoes.length; i++) destruirExplosao(estado.explosoes[i]);
     estado.explosoes.length = 0;
     if (estado.trailMota)  resetarTrail(estado.trailMota);
     if (estado.trailSkate) resetarTrail(estado.trailSkate);
-    if (estado.overlayCountdown) estado.overlayCountdown.style.display = 'none';
 }
 
 // ---------------------------------------------------------------
-// Overlay de Contagem
+// Injecção de @keyframes (countdown-pop, heart-break)
 // ---------------------------------------------------------------
-function obterOverlayCountdown() {
-    if (estado.overlayCountdown) return estado.overlayCountdown;
+function injetarStylesCountdown() {
+    if (document.getElementById('neon-drive-styles')) return;
+    var style = document.createElement('style');
+    style.id = 'neon-drive-styles';
+    style.textContent = [
+        '@keyframes countdown-pop {',
+        '  0%   { transform: translate(-50%, -50%) scale(1.5); opacity: 0.2; }',
+        '  30%  { transform: translate(-50%, -50%) scale(1.0); opacity: 1.0; }',
+        '  100% { transform: translate(-50%, -50%) scale(0.8); opacity: 0.85; }',
+        '}',
+        '.countdown-anim { animation: countdown-pop 0.8s ease-out; }',
+        '@keyframes heart-break {',
+        '  0%,100% { opacity: 1; transform: scale(1); }',
+        '  20%     { opacity: 0; transform: scale(1.3); }',
+        '  40%     { opacity: 1; transform: scale(1); }',
+        '  60%     { opacity: 0; transform: scale(1.3); }',
+        '  80%     { opacity: 1; transform: scale(1); }',
+        '}',
+        '.heart-break { display: inline-block; animation: heart-break 0.4s ease-out; }'
+    ].join('\n');
+    document.head.appendChild(style);
+}
+
+// ---------------------------------------------------------------
+// Overlay de Contagem 3 → 2 → 1 → GO!
+// ---------------------------------------------------------------
+function obterOverlayContagem() {
+    if (estado.overlayContagem) return estado.overlayContagem;
     var div = document.createElement('div');
     div.id = 'countdown-ronda';
     div.style.cssText = [
         'position:fixed', 'top:50%', 'left:50%',
-        'transform:translate(-50%,-50%)',
+        'transform:translate(-50%, -50%)',
         'font-family:Orbitron, "Courier New", monospace',
-        'font-weight:900', 'font-size:120px',
+        'font-weight:900', 'font-size:160px',
         'text-align:center', 'pointer-events:none',
-        'z-index:2000', 'display:none',
-        'color: #ffffff',
-        'text-shadow: 0 0 20px #00ffff, 0 0 40px #00ffff'
+        'z-index:1600', 'display:none'
     ].join(';');
     document.body.appendChild(div);
-    estado.overlayCountdown = div;
+    estado.overlayContagem = div;
     return div;
 }
 
-function atualizarOverlayCountdown() {
-    var ov = obterOverlayCountdown();
-    var t = estado.timerCountdown;
+function mostrarContagem(valor) {
+    var ov = obterOverlayContagem();
+    var cor, txt, fontSize;
+    if (valor === 3)      { cor = '#ff2244'; txt = '3';   fontSize = '160px'; }
+    else if (valor === 2) { cor = '#ffc83a'; txt = '2';   fontSize = '160px'; }
+    else if (valor === 1) { cor = '#59ff7c'; txt = '1';   fontSize = '160px'; }
+    else                  { cor = '#ffffff'; txt = 'GO!'; fontSize = '96px';  }
 
-    if (t <= 0) {
-        ov.style.display = 'none';
-        return;
-    }
-
+    ov.textContent = txt;
+    ov.style.color = cor;
+    ov.style.fontSize = fontSize;
+    ov.style.textShadow = '0 0 12px ' + cor + ', 0 0 24px ' + cor + ', 0 0 48px ' + cor;
     ov.style.display = 'block';
-    
-    if (t > 0.5) {
-        ov.textContent = Math.ceil(t - 0.5).toString();
-        ov.style.color = estado.corCountdown;
-        ov.style.textShadow = '0 0 20px ' + estado.corCountdown + ', 0 0 40px ' + estado.corCountdown;
-    } else {
-        ov.textContent = 'GO!';
-        ov.style.color = '#00ff00';
-        ov.style.textShadow = '0 0 20px #00ff00, 0 0 40px #00ff00';
+
+    // Relança a animação CSS via reflow
+    ov.classList.remove('countdown-anim');
+    void ov.offsetWidth;
+    ov.classList.add('countdown-anim');
+
+    // SFX
+    try {
+        if (valor > 0) sfxCountdown('beep');
+        else           sfxCountdown('go');
+    } catch (e) {}
+}
+
+function esconderContagem() {
+    if (estado.overlayContagem) estado.overlayContagem.style.display = 'none';
+}
+
+// ---------------------------------------------------------------
+// HUD de Vidas (corações + ROUND N)
+// ---------------------------------------------------------------
+function obterHUDVidas() {
+    if (estado.hudVidas) return estado.hudVidas;
+    var div = document.createElement('div');
+    div.id = 'hud-vidas';
+    div.style.cssText = [
+        'position:fixed', 'top:0', 'left:0', 'width:100%',
+        'display:none', 'justify-content:space-between', 'align-items:center',
+        'padding:10px 24px', 'box-sizing:border-box',
+        'font-family:Orbitron, "Courier New", monospace',
+        'font-size:13px', 'letter-spacing:2px',
+        'pointer-events:none', 'z-index:1400'
+    ].join(';');
+
+    var p1 = document.createElement('div');
+    p1.className = 'hud-p1';
+    p1.style.cssText = 'display:flex;align-items:center;gap:8px;font-weight:700';
+    var p2 = document.createElement('div');
+    p2.className = 'hud-p2';
+    p2.style.cssText = 'display:flex;align-items:center;gap:8px;font-weight:700';
+    var meio = document.createElement('div');
+    meio.className = 'hud-meio';
+    meio.style.cssText = [
+        'color:#ffffff', 'font-size:11px', 'letter-spacing:6px',
+        'font-weight:900', 'text-shadow:0 0 6px #ffffff'
+    ].join(';');
+
+    div.appendChild(p1);
+    div.appendChild(meio);
+    div.appendChild(p2);
+    document.body.appendChild(div);
+    estado.hudVidas = div;
+    return div;
+}
+
+function mostrarHUD() {
+    var hud = obterHUDVidas();
+    hud.style.display = 'flex';
+}
+
+function esconderHUD() {
+    if (estado.hudVidas) estado.hudVidas.style.display = 'none';
+}
+
+function construirCoracoesHTML(jogadorId, indiceBreaking) {
+    var cor = corHexJogador(jogadorId);
+    var total = estado.vidasIniciais;
+    var vivos = estado.vidas[jogadorId];
+    var html = '';
+    for (var i = 0; i < total; i++) {
+        var key = jogadorId + '-' + i;
+        if (i === indiceBreaking) {
+            // Está a piscar antes de morrer — mostra ♥ na cor cheia com animação
+            html += '<span class="heart-cell heart-break" data-id="' + key + '" style="color:' + cor + ';text-shadow:0 0 6px ' + cor + ',0 0 12px ' + cor + '">♥</span>';
+        } else if (i < vivos) {
+            html += '<span class="heart-cell" data-id="' + key + '" style="color:' + cor + ';text-shadow:0 0 6px ' + cor + ',0 0 12px ' + cor + '">♥</span>';
+        } else {
+            html += '<span class="heart-cell" data-id="' + key + '" style="color:' + cor + ';opacity:0.3">♡</span>';
+        }
     }
-    
-    // Efeito de pulso simples na escala
-    var scale = 1.0 + (t % 1.0) * 0.2;
-    ov.style.transform = 'translate(-50%, -50%) scale(' + scale + ')';
+    return html;
+}
+
+// Se `jogadorPerdeuVida` for passado, o coração na posição `vidas[id]`
+// (já decrementado) é renderizado a piscar como ♥ durante 0.4s antes de
+// passar definitivamente a ♡ no segundo render.
+function atualizarHUD(jogadorPerdeuVida) {
+    var hud = obterHUDVidas();
+    var p1 = hud.querySelector('.hud-p1');
+    var p2 = hud.querySelector('.hud-p2');
+    var meio = hud.querySelector('.hud-meio');
+
+    var nomeP1 = estado.gameMode === 'local1v1' ? 'P1' : 'YOU';
+    var nomeP2 = estado.gameMode === 'local1v1' ? 'P2' : 'AI';
+    var corP1 = corHexJogador(1);
+    var corP2 = corHexJogador(2);
+
+    var idxBreakP1 = (jogadorPerdeuVida === 1) ? estado.vidas[1] : -1;
+    var idxBreakP2 = (jogadorPerdeuVida === 2) ? estado.vidas[2] : -1;
+
+    p1.innerHTML = construirCoracoesHTML(1, idxBreakP1)
+        + '<span style="color:' + corP1 + ';margin-left:10px;text-shadow:0 0 6px ' + corP1 + '">' + nomeP1 + '</span>';
+    p2.innerHTML = '<span style="color:' + corP2 + ';margin-right:10px;text-shadow:0 0 6px ' + corP2 + '">' + nomeP2 + '</span>'
+        + construirCoracoesHTML(2, idxBreakP2);
+    meio.textContent = 'ROUND ' + estado.numRonda;
+
+    // Após a animação, re-renderiza sem o "breaking" para o coração ficar ♡
+    if (jogadorPerdeuVida) {
+        setTimeout(function () { atualizarHUD(); }, 450);
+    }
 }

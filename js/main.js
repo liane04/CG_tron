@@ -271,7 +271,8 @@ function buildGame() {
             trailSkate: trailSkate,
             cores: { 1: corP1, 2: corP2 },
             gameMode: modoJogoAtual,
-            corCountdown: mapa.corGrid1 || 0x00ffff
+            vidasIniciais: (menuSettings && menuSettings.vidasIniciais) || 3,
+            onMatchEnd: function () { backToMenu(); }
         });
         iniciarRonda();
 

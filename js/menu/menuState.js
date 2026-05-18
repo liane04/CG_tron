@@ -140,7 +140,7 @@ export function initMenuState(initialSettings, opts) {
             settings.vidasIniciais = (selection.vidasIniciais !== undefined) ? selection.vidasIniciais : 3;
             saveSettings(settings);
             // No 1v1 o P1 é o primeiro a configurar; no AI mantemos null (sem label)
-            customizingPlayer = (selection.modeId === 'local1v1') ? 1 : null;
+            customizingPlayer = (selection.modeId === 'local1v1' || selection.modeId === 'split1v1') ? 1 : null;
             goToState(STATES.GARAGE);
         },
         onBack: function () { goToState(STATES.MAIN); }
@@ -172,7 +172,7 @@ export function initMenuState(initialSettings, opts) {
             g.trailId = selection.trailId;
             saveSettings(settings);
             // No 1v1, após o P1 segue-se a Garage do P2
-            if (settings.gameMode === 'local1v1' && customizingPlayer === 1) {
+            if ((settings.gameMode === 'local1v1' || settings.gameMode === 'split1v1') && customizingPlayer === 1) {
                 customizingPlayer = 2;
                 goToState(STATES.GARAGE);
             } else {

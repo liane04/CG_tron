@@ -73,7 +73,7 @@ function start() {
             appMode = 'game';
             var info = document.getElementById('info');
             info.style.display = 'block';
-            info.innerHTML = (gameMode === 'local1v1')
+            info.innerHTML = (gameMode === 'local1v1' || gameMode === 'split1v1')
                 ? 'P1 SETAS &nbsp; P2 WASD &nbsp; [ESC] Menu'
                 : '[V] 3&ordf; Pessoa &nbsp; [B] Topo &nbsp; [C] Alternar &nbsp; [ESC] Menu';
         },
@@ -100,6 +100,8 @@ function backToMenu() {
     appMode = 'menu';
     if (gameApi && gameApi.teardown) gameApi.teardown();
     document.getElementById('info').style.display = 'none';
+    var divider = document.getElementById('split-divider');
+    if (divider) divider.style.display = 'none';
     showMenu();
     playMenuMusic();
 }
@@ -120,6 +122,10 @@ function buildGame() {
     var camaraPerspetiva = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 800);
     camaraPerspetiva.position.set(0, 45, 70);
     camaraPerspetiva.lookAt(0, 0, 0);
+
+    var camaraPerspetivaP2 = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 800);
+    camaraPerspetivaP2.position.set(0, 45, 70);
+    camaraPerspetivaP2.lookAt(0, 0, 0);
 
     var aspecto = window.innerWidth / window.innerHeight;
     // Vista ortográfica encosta verticalmente à arena (ARENA/2 de meia-extensão)
@@ -182,6 +188,8 @@ function buildGame() {
     var alvoTerceiraPessoa = new THREE.Vector3(0, 1, -2);
     var posCamTemp = new THREE.Vector3();
     var alvoCamTemp = new THREE.Vector3();
+    var posCamTempP2 = new THREE.Vector3();
+    var alvoCamTempP2 = new THREE.Vector3();
 
     var COLOR_HEX = {
         cyan: 0x00eaff, magenta: 0xff2bd6, yellow: 0xffc83a,
@@ -227,7 +235,7 @@ function buildGame() {
         // Player 1 — escolhido na Garage/Customize. Player 2 só usa garage2 no
         // modo local1v1; em single-player fica como skate magenta por defeito.
         var corP1 = resolverCor(garage, 0x00ffff);
-        var ehDuelo = (modoJogoAtual === 'local1v1');
+        var ehDuelo = (modoJogoAtual === 'local1v1' || modoJogoAtual === 'split1v1');
         var corP2 = ehDuelo ? resolverCor(garage2, COR_SKATE_J2) : COR_SKATE_J2;
 
         motaJogador1 = buildVehicle(garage, 0x00ffff);
@@ -256,7 +264,7 @@ function buildGame() {
 
         // No modo "ai" o skate é controlado pela IA; no "local1v1" ambos os
         // jogadores são humanos (setas vs WASD) e a IA fica desligada.
-        var iaJ2Ativa = (modoJogoAtual !== 'local1v1');
+        var iaJ2Ativa = (modoJogoAtual !== 'local1v1' && modoJogoAtual !== 'split1v1');
         definirIAJ1Ativa(false);
         definirIAJ2Ativa(iaJ2Ativa);
         if (iaJ2Ativa) inicializarIA(skateJogador2, trailSkate, trailMota, ARENA / 2);
@@ -282,6 +290,10 @@ function buildGame() {
             camaraAtiva = camaraOrtografica;
             modoCamara = 'topo';
             aplicarModoCamara();
+        } else if (modoJogoAtual === 'split1v1') {
+            camaraAtiva = camaraPerspetiva;
+            modoCamara = 'terceiraPessoa';
+            aplicarModoCamara();
         } else if (menuSettings && menuSettings.visual && menuSettings.visual.cameraMode === 'orthographic') {
             camaraAtiva = camaraOrtografica;
             modoCamara = 'topo';
@@ -294,8 +306,20 @@ function buildGame() {
         // Atualiza a interface GUI com as novas referências do mapa
         updateDebugContext(luzes, cena, grupoArena);
 
+        onResize(window.innerWidth, window.innerHeight);
+
         // Pré-compilação de shaders na GPU para evitar stutter no primeiro frame
         renderer.compile(cena, camaraAtiva);
+        if (modoJogoAtual === 'split1v1') renderer.compile(cena, camaraPerspetivaP2);
+
+        var divider = document.getElementById('split-divider');
+        if (!divider) {
+            divider = document.createElement('div');
+            divider.id = 'split-divider';
+            divider.style.cssText = 'position:fixed; top:0; left:50%; width:4px; height:100%; background: linear-gradient(to bottom, #00eaff, #ff2bd6); z-index:1300; transform:translateX(-50%); display:none; pointer-events:none; box-shadow: 0 0 15px #00eaff;';
+            document.body.appendChild(divider);
+        }
+        divider.style.display = (modoJogoAtual === 'split1v1') ? 'block' : 'none';
     }
 
     function aplicarModoCamara() {
@@ -317,7 +341,7 @@ function buildGame() {
         if (e.key === 'Escape') { backToMenu(); return; }
         // No modo 1v1 a câmara é fixa em topo — os toggles C/V/B ficam inativos
         // para não partir o equilíbrio do split-keyboard.
-        if (modoJogoAtual === 'local1v1') return;
+        if (modoJogoAtual === 'local1v1' || modoJogoAtual === 'split1v1') return;
         if (e.key === 'c' || e.key === 'C') {
             if (modoCamara !== 'livre') {
                 modoCamara = 'livre';
@@ -338,7 +362,7 @@ function buildGame() {
         atualizarMota(delta);
         atualizarSkate(delta);
         atualizarSpeeder(delta);
-        if (modoJogoAtual !== 'local1v1') atualizarIA(delta);
+        if (modoJogoAtual !== 'local1v1' && modoJogoAtual !== 'split1v1') atualizarIA(delta);
         atualizarMotas(delta);
         atualizarGameLogic(delta);
 
@@ -363,6 +387,17 @@ function buildGame() {
             camaraPerspetiva.lookAt(alvoCamTemp);
         }
 
+        if (modoJogoAtual === 'split1v1' && skateJogador2) {
+            posCamTempP2.copy(offsetTerceiraPessoa).applyQuaternion(skateJogador2.quaternion);
+            posCamTempP2.add(skateJogador2.position);
+            alvoCamTempP2.copy(alvoTerceiraPessoa).applyQuaternion(skateJogador2.quaternion);
+            alvoCamTempP2.add(skateJogador2.position);
+
+            if (modoCamaraAnterior !== 'terceiraPessoa') camaraPerspetivaP2.position.copy(posCamTempP2);
+            else camaraPerspetivaP2.position.lerp(posCamTempP2, Math.min(1, 8 * delta));
+            camaraPerspetivaP2.lookAt(alvoCamTempP2);
+        }
+
         if (modoCamara === 'livre') controlos.update();
         modoCamaraAnterior = modoCamara;
 
@@ -371,14 +406,40 @@ function buildGame() {
         if (trailSkate) atualizarTrail(trailSkate, delta, camaraAtiva);
     }
 
-    function render() { renderer.render(cena, camaraAtiva); }
+    function render() {
+        if (modoJogoAtual === 'split1v1') {
+            var w = window.innerWidth;
+            var h = window.innerHeight;
+
+            renderer.setScissorTest(true);
+
+            // Player 1 (Left half)
+            renderer.setScissor(0, 0, w / 2, h);
+            renderer.setViewport(0, 0, w / 2, h);
+            renderer.render(cena, camaraPerspetiva);
+
+            // Player 2 (Right half)
+            renderer.setScissor(w / 2, 0, w / 2, h);
+            renderer.setViewport(w / 2, 0, w / 2, h);
+            renderer.render(cena, camaraPerspetivaP2);
+
+            renderer.setScissorTest(false);
+            renderer.setViewport(0, 0, w, h);
+        } else {
+            renderer.render(cena, camaraAtiva);
+        }
+    }
 
     function onResize(w, h) {
-        var asp = w / h;
+        var asp = (modoJogoAtual === 'split1v1') ? (w / 2) / h : w / h;
         camaraPerspetiva.aspect = asp;
         camaraPerspetiva.updateProjectionMatrix();
-        camaraOrtografica.left = -tamanhoOrto * asp;
-        camaraOrtografica.right = tamanhoOrto * asp;
+        camaraPerspetivaP2.aspect = asp;
+        camaraPerspetivaP2.updateProjectionMatrix();
+
+        var aspOrto = w / h;
+        camaraOrtografica.left = -tamanhoOrto * aspOrto;
+        camaraOrtografica.right = tamanhoOrto * aspOrto;
         camaraOrtografica.top = tamanhoOrto;
         camaraOrtografica.bottom = -tamanhoOrto;
         camaraOrtografica.updateProjectionMatrix();
@@ -395,6 +456,8 @@ function buildGame() {
         limparGameLogic();
         if (trailMota) { destruirTrail(trailMota, cena); trailMota = null; }
         if (trailSkate) { destruirTrail(trailSkate, cena); trailSkate = null; }
+        var divider = document.getElementById('split-divider');
+        if (divider) divider.style.display = 'none';
     }
 
     return {

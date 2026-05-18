@@ -35,6 +35,16 @@ var ALTURA_MAX_SALTO = 3;
 var DURACAO_SALTO = 0.6;   // segundos
 var LIMITE_ARENA = 20;    // ±ARENA/2 — atualizado por inicializarInput
 
+// --- Boost / Nitro ---
+// Cada jogador tem uma "barra" com BOOST_TEMPO_MAX segundos de uso. Enquanto a
+// tecla de boost está premida e há carga, a velocidade é multiplicada e a
+// carga drena 1s por cada segundo real. Quando a tecla é largada (ou a barra
+// esgota) a carga vai recarregando até BOOST_TEMPO_MAX em BOOST_TEMPO_RECARGA
+// segundos. É possível activar parcialmente (usar 1.5s quando há 1.5s, etc).
+var BOOST_TEMPO_MAX = 3.0;   // segundos de boost máximos
+var BOOST_TEMPO_RECARGA = 10.0;  // segundos para recarregar do 0 ao máximo
+var BOOST_MULTIPLICADOR = 1.9;   // multiplicador de velocidade enquanto activo
+
 // --- Colisão com obstáculos ---
 var obstaculos = [];            // Array de THREE.Box3 (AABB em espaço-mundo)
 
@@ -85,7 +95,9 @@ function criarEstado(veiculo) {
         tSalto: 0,
         alturaBase: veiculo.position.y,
         alturaMaxSalto: ALTURA_MAX_SALTO,
-        duracaoSalto: DURACAO_SALTO
+        duracaoSalto: DURACAO_SALTO,
+        boostCarga: BOOST_TEMPO_MAX,
+        boostAtivo: false
     };
 }
 
@@ -209,7 +221,7 @@ export function colideComObstaculo(posicao, rot, hw, hl) {
     return false;
 }
 
-function atualizarJogador(veiculo, estado, fonteTeclas, teclaEsq, teclaDir, hw, hl, delta, paredeCb) {
+function atualizarJogador(veiculo, estado, fonteTeclas, teclaEsq, teclaDir, teclaBoost, hw, hl, delta, paredeCb) {
     if (!veiculo || !estado) return;
 
     if (fonteTeclas[teclaEsq]) veiculo.rotation.y += VELOCIDADE_ROTACAO * delta;
@@ -219,18 +231,18 @@ function atualizarJogador(veiculo, estado, fonteTeclas, teclaEsq, teclaDir, hw, 
     let inclinarAlvo = 0;
     // O carro (speeder) não deve inclinar lateralmente como uma mota
     const ehCarro = veiculo.userData && veiculo.userData.tipo === 'speeder';
-    
+
     if (!ehCarro) {
         if (fonteTeclas[teclaEsq]) inclinarAlvo = 0.35; // rad (~20 graus)
         if (fonteTeclas[teclaDir]) inclinarAlvo = -0.35;
     }
-    
+
     // Aplicar ao modelo interior para não afetar a orientação da raiz (importante p/ trails)
     if (veiculo.children.length > 0) {
         const modelo = veiculo.children[0];
         // Interpolação suave p/ inclinação (Banking)
         modelo.rotation.z = THREE.MathUtils.lerp(modelo.rotation.z, inclinarAlvo, 0.1);
-        
+
         // Vibração subtil de motor/energia (apenas se estiver ativo)
         if (!pausadoJ1 && !pausadoJ2) {
             const t = performance.now() * 0.001;
@@ -238,12 +250,27 @@ function atualizarJogador(veiculo, estado, fonteTeclas, teclaEsq, teclaDir, hw, 
         }
     }
 
+    // Boost: drena enquanto a tecla está premida e há carga; caso contrário recarrega.
+    var queremBoost = teclaBoost && !!fonteTeclas[teclaBoost];
+    if (queremBoost && estado.boostCarga > 0) {
+        estado.boostAtivo = true;
+        estado.boostCarga -= delta;
+        if (estado.boostCarga < 0) estado.boostCarga = 0;
+    } else {
+        estado.boostAtivo = false;
+        if (estado.boostCarga < BOOST_TEMPO_MAX) {
+            estado.boostCarga += delta * (BOOST_TEMPO_MAX / BOOST_TEMPO_RECARGA);
+            if (estado.boostCarga > BOOST_TEMPO_MAX) estado.boostCarga = BOOST_TEMPO_MAX;
+        }
+    }
+    var velocidadeAtual = estado.velocidade * (estado.boostAtivo ? BOOST_MULTIPLICADOR : 1);
+
     estado.direcao.set(-Math.sin(veiculo.rotation.y), 0, -Math.cos(veiculo.rotation.y));
 
     var prevX = veiculo.position.x;
     var prevZ = veiculo.position.z;
 
-    veiculo.position.addScaledVector(estado.direcao, estado.velocidade * delta);
+    veiculo.position.addScaledVector(estado.direcao, velocidadeAtual * delta);
 
     // Limitar à arena (paredes exteriores) — disparar callback se foi clampado
     var margem = 0.5;
@@ -315,15 +342,18 @@ export function atualizarMotas(delta) {
         var fonteJ1 = iaAtivaJ1
             ? { ArrowLeft: teclasIA_J1.esq, ArrowRight: teclasIA_J1.dir }
             : teclas;
-        atualizarJogador(motaJ1, estadoJ1, fonteJ1, 'ArrowLeft', 'ArrowRight', estadoJ1.hw, estadoJ1.hl, delta,
-            aoColidirParedeJ1);
+        // Boost só está disponível para humanos; a IA nunca activa nitro.
+        var boostJ1 = iaAtivaJ1 ? null : 'ArrowUp';
+        atualizarJogador(motaJ1, estadoJ1, fonteJ1, 'ArrowLeft', 'ArrowRight', boostJ1,
+            estadoJ1.hw, estadoJ1.hl, delta, aoColidirParedeJ1);
     }
     if (!pausadoJ2) {
         var fonteJ2 = iaAtivaJ2
             ? { KeyA: teclasIA_J2.esq, KeyD: teclasIA_J2.dir }
             : teclas;
-        atualizarJogador(skateJ2, estadoJ2, fonteJ2, 'KeyA', 'KeyD', estadoJ2.hw, estadoJ2.hl, delta,
-            aoColidirParedeJ2);
+        var boostJ2 = iaAtivaJ2 ? null : 'KeyW';
+        atualizarJogador(skateJ2, estadoJ2, fonteJ2, 'KeyA', 'KeyD', boostJ2,
+            estadoJ2.hw, estadoJ2.hl, delta, aoColidirParedeJ2);
     }
 }
 
@@ -385,9 +415,19 @@ export function reposicionarJogador(idx, x, z, rotY) {
     st.direcao.set(-Math.sin(rotY), 0, -Math.cos(rotY));
     st.saltando = false;
     st.tSalto = 0;
+    st.boostCarga = BOOST_TEMPO_MAX;
+    st.boostAtivo = false;
 }
 
 export function obterLimiteArena() { return LIMITE_ARENA; }
 export function obterMotaJ1() { return motaJ1; }
 export function obterSkateJ2() { return skateJ2; }
 export function obterRotacaoJ1() { return motaJ1 ? motaJ1.rotation.y : 0; }
+
+// --- Boost / Nitro: leituras para HUD ---
+export function obterBoostMax() { return BOOST_TEMPO_MAX; }
+export function obterBoost(idx) {
+    var st = (idx === 1) ? estadoJ1 : (idx === 2 ? estadoJ2 : null);
+    if (!st) return { carga: 0, max: BOOST_TEMPO_MAX, ativo: false };
+    return { carga: st.boostCarga, max: BOOST_TEMPO_MAX, ativo: st.boostAtivo };
+}

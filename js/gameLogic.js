@@ -11,6 +11,11 @@ import { definirDificuldadeIA, obterDificuldadeIA } from './ai.js';
 // Re-exportado para que o menu de definições possa configurar a IA sem importar ai.js
 export { definirDificuldadeIA, obterDificuldadeIA };
 
+// Temporários reutilizados a cada frame em atualizarGameLogic.
+// adicionarPonto faz uma cópia interna dos dados, por isso é seguro reaproveitar.
+const _tmpOffset = new THREE.Vector3();
+const _tmpPosTrail = new THREE.Vector3();
+
 // Estado interno da ronda corrente
 const estado = {
     cena: null,
@@ -231,15 +236,15 @@ export function atualizarGameLogic(delta) {
     if (estado.activos[1] && estado.motaRef) {
         // Se for o trail clássico (ribbon), sai do centro (Z=0). Caso contrário, sai da traseira.
         const offZ = (estado.trailMota && estado.trailMota.id === 'ribbon') ? 0 : 1.8;
-        const offset = new THREE.Vector3(0, 0, offZ).applyQuaternion(estado.motaRef.quaternion);
-        const posTrail = estado.motaRef.position.clone().add(offset);
-        adicionarPonto(estado.trailMota, posTrail);
+        _tmpOffset.set(0, 0, offZ).applyQuaternion(estado.motaRef.quaternion);
+        _tmpPosTrail.copy(estado.motaRef.position).add(_tmpOffset);
+        adicionarPonto(estado.trailMota, _tmpPosTrail);
     }
     if (estado.activos[2] && estado.skateRef) {
         const offZ = (estado.trailSkate && estado.trailSkate.id === 'ribbon') ? 0 : 1.2;
-        const offset = new THREE.Vector3(0, 0, offZ).applyQuaternion(estado.skateRef.quaternion);
-        const posTrail = estado.skateRef.position.clone().add(offset);
-        adicionarPonto(estado.trailSkate, posTrail);
+        _tmpOffset.set(0, 0, offZ).applyQuaternion(estado.skateRef.quaternion);
+        _tmpPosTrail.copy(estado.skateRef.position).add(_tmpOffset);
+        adicionarPonto(estado.trailSkate, _tmpPosTrail);
     }
 
     // Detectar colisões trail

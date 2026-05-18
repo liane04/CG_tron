@@ -23,9 +23,12 @@ export function atualizarMota(delta) {
 }
 
 export function criarMota(corNeon = 0x00ffff) {
-    // Limpar referências mortas
+    // Limpar referências mortas — uma mota já não está em cena se a sua raiz
+    // não tem parent. A versão anterior tinha uma condição inválida
+    // (`!array.length === 0`) que nunca limpava, fazendo crescer o array a cada
+    // mudança de mapa e desperdiçando trabalho em `atualizarMota`.
     for (let i = _motaAnimData.length - 1; i >= 0; i--) {
-        if (!_motaAnimData[i].raiz.parent && !_motaAnimData[i].raiz.children.length === 0) {
+        if (!_motaAnimData[i].raiz.parent) {
             _motaAnimData.splice(i, 1);
         }
     }

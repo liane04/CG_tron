@@ -63,6 +63,14 @@ export function adicionarObjetosSpace(grupo, ARENA, loader) {
  * Anima os blocos orbitais dos pilares.
  */
 export function atualizarSpace(delta) {
+    if (blocosOrbitais.length === 0) return;
+    // Auto-limpeza: se a arena Space foi removida da cena (jogador trocou de mapa)
+    // descartamos as referências para não fazer trabalho em objetos órfãos.
+    var p = blocosOrbitais[0].parent;
+    var emCena = false;
+    while (p) { if (p.isScene) { emCena = true; break; } p = p.parent; }
+    if (!emCena) { blocosOrbitais.length = 0; return; }
+
     blocosOrbitais.forEach(grupoAnimacao => {
         
         // Se for o ADN, apenas roda (como fizemos antes)

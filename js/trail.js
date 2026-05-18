@@ -167,6 +167,12 @@ export function atualizarTrail(trail, dt, camara) {
     const isWireframe = (trail.id === 'wireframe');
     const isGlitch = (trail.id === 'glitch');
 
+    // Pulso de opacidade aplica-se ao material partilhado, válido para todos os estilos.
+    trail.material.opacity = 0.7 + Math.sin(agora * velocidadePulsoBrilho) * 0.15;
+
+    // Estilos estáticos (wall/ribbon) não animam segmentos — saltar 300 iterações.
+    if (!isCubes && !isWireframe && !isGlitch) return;
+
     trail.segmentos.forEach(objeto => {
         if (isCubes) {
             objeto.rotation.x += dt * 1.5;
@@ -208,10 +214,6 @@ export function atualizarTrail(trail, dt, camara) {
             const velocidadeTremor = 0.05;
             const tremorScale = 1 + (Math.sin(agora * velocidadeTremor + objeto.position.x + objeto.position.z) * intensidadeTremor);
             objeto.scale.x = tremorScale;
-        } else {
-            objeto.scale.x = 1.0;
         }
     });
-
-    trail.material.opacity = 0.7 + Math.sin(agora * velocidadePulsoBrilho) * 0.15;
 }

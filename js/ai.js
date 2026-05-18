@@ -53,6 +53,12 @@ const estado = {
     espacoJogadorCache: MAX_PASSOS_HEUR
 };
 
+// Throttle global da IA — corre a 30Hz em vez de 60Hz. Cada raioBloqueado faz
+// ~15k verificações de distância em medium, ~50k em hard; a 30Hz é metade.
+// A IA decide em janelas de 0.5s portanto não há perda de comportamento.
+var _aiAcumulador = 0;
+const AI_PERIODO = 1 / 30;
+
 export function definirDificuldadeIA(nivel) {
     var preset = DIFICULDADES[nivel];
     if (!preset) return false;
@@ -78,11 +84,18 @@ export function inicializarIA(mota, trailMota, trailSkate, limiteArena, dificuld
     estado.viragemTimer = 0;
     estado.tempoUltCalcJogador = 0;
     estado.espacoJogadorCache = MAX_PASSOS_HEUR;
+    _aiAcumulador = 0;
     definirDificuldadeIA(dificuldade || 'medium');
 }
 
 export function atualizarIA(delta) {
     if (!estado.mota) return;
+    _aiAcumulador += delta;
+    if (_aiAcumulador < AI_PERIODO) return;
+    // Usa o delta acumulado para os timers internos (viragemTimer, throttle do
+    // cálculo de espaço do jogador) progredirem em tempo real, não em ticks.
+    delta = _aiAcumulador;
+    _aiAcumulador = 0;
 
     var pos = estado.mota.position;
     var rotY = estado.mota.rotation.y;

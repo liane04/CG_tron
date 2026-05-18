@@ -17,6 +17,7 @@ import { mapas } from './mapas.js';
 import { criarTrail, destruirTrail, atualizarTrail } from './trail.js';
 import { configurarGameLogic, iniciarRonda, atualizarGameLogic, limparGameLogic } from './gameLogic.js';
 import { inicializarIA, atualizarIA } from './ai.js';
+import { criarHudBoost, atualizarHudBoost, destruirHudBoost, mostrarHudBoost } from './hudBoost.js';
 
 import { adicionarObjetosSpace, atualizarSpace } from './objetos/arenaSpace.js';
 import { adicionarObjetosDeserto, atualizarDeserto } from './objetos/arenaDeserto.js';
@@ -30,6 +31,10 @@ import { initDebugGUI, updateDebugContext } from './debugGUI.js';
 // Renderer (shared between menu and game)
 // ---------------------------------------------------------------------------
 var renderer = new THREE.WebGLRenderer({ antialias: true });
+// Clamp do DPR a 2 — em ecrãs HiDPI (DPR 3 em alguns portáteis/4K) o custo de
+// fragmento cresce com o quadrado da resolução; 2 já está ao nível "retina"
+// e a diferença visual para 3 é imperceptível neste tipo de cena neon.
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -74,8 +79,8 @@ function start() {
             var info = document.getElementById('info');
             info.style.display = 'block';
             info.innerHTML = (gameMode === 'local1v1' || gameMode === 'split1v1')
-                ? 'P1 SETAS &nbsp; P2 WASD &nbsp; [ESC] Menu'
-                : '[V] 3&ordf; Pessoa &nbsp; [B] Topo &nbsp; [C] Alternar &nbsp; [ESC] Menu';
+                ? 'P1 SETAS (&uarr; NITRO) &nbsp; P2 WASD (W NITRO) &nbsp; [ESC] Menu'
+                : '[&uarr;] Nitro &nbsp; [V] 3&ordf; Pessoa &nbsp; [B] Topo &nbsp; [C] Alternar &nbsp; [ESC] Menu';
         },
         onSettingsChange: function (s) {
             menuSettings = s;
@@ -272,6 +277,9 @@ function buildGame() {
             inicializarIA(skateJogador2, trailSkate, trailMota, ARENA / 2, aiDif);
         }
 
+        // HUD do nitro/boost — colocado no canto inferior direito.
+        criarHudBoost({ gameMode: modoJogoAtual, cores: { 1: corP1, 2: corP2 } });
+
         // Configurar e arrancar a primeira ronda
         configurarGameLogic({
             cena: cena,
@@ -368,6 +376,7 @@ function buildGame() {
         if (modoJogoAtual !== 'local1v1' && modoJogoAtual !== 'split1v1') atualizarIA(delta);
         atualizarMotas(delta);
         atualizarGameLogic(delta);
+        atualizarHudBoost();
 
         if (luzes && motaJogador1) {
             luzes.pontoMota1.position.copy(motaJogador1.position);
@@ -463,6 +472,7 @@ function buildGame() {
         if (trailSkate) { destruirTrail(trailSkate, cena); trailSkate = null; }
         var divider = document.getElementById('split-divider');
         if (divider) divider.style.display = 'none';
+        destruirHudBoost();
     }
 
     return {

@@ -183,7 +183,10 @@ function rebuildPreview() {
     var color = COLORS[currentColorIndex];
     vehicleMesh = vDef.build(color);
     vehicleMesh.position.set(0, vDef.podiumOffsetY || 0, 0);
-    vehicleMesh.rotation.y = Math.PI / 2; // Face sideways (parallel to screen)
+    // A Mota tem a frente em +Z (roda PI/2 para +X), mas o Speeder e o Skate
+    // têm a frente em -Z (rodam -PI/2 para +X). Assim, todos ficam virados para
+    // a direita, de onde o rasto sai para a esquerda de forma coerente.
+    vehicleMesh.rotation.y = (vDef.id === 'speeder' || vDef.id === 'skate') ? -Math.PI / 2 : Math.PI / 2;
     // Veículos têm PointLights próprios para o glow dentro do jogo — no menu
     // ficavam demasiado iluminados, basta o emissivo dos materiais.
     vehicleMesh.traverse(function (child) {

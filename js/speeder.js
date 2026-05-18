@@ -1,10 +1,10 @@
-// Speeder X1 — carro cyberpunk desportivo construído inteiramente a partir
-// das primitivas de Three.js (Box, Cylinder, Cone, Sphere, Torus, Ring, Plane).
+// Speeder X1 — carro de Fórmula 1 cyberpunk desportivo construído a partir
+// das primitivas de Three.js (Box, Cylinder, Cone, Sphere, Torus, Plane).
 // Texturizado com uma mistura de materiais nativos (emissivos para neon,
 // faróis e luzes traseiras) e texturas PBR importadas:
-//   - textures/neon/metal scifi1 (Metal_Plate_040) → chassis
-//   - textures/neon/metal scifi2 (Greeble_Techno_001) → painéis técnicos
-//   - textures/neon/vidro (Glass_Window_003)        → para-brisas e vidros
+//   - textures/neon/metal scifi1 (Metal_Plate_040) → chassis monocoque
+//   - textures/neon/metal scifi2 (Greeble_Techno_001) → sidepods e asas
+//   - textures/neon/vidro (Glass_Window_003)        → para-brisas
 // A convenção (front = -Z) segue mota.js e o sistema de input.
 
 import * as THREE from 'three';
@@ -26,16 +26,16 @@ export function atualizarSpeeder(delta) {
             for (const l of d.taillights) l.material.emissiveIntensity = tail;
         }
         if (d.rodas) {
-            for (const r of d.rodas) r.rotation.x += delta * 6.0;
+            // Rotação em torno do eixo Z local (eixo do rodado) para girar corretamente
+            for (const r of d.rodas) r.rotation.z -= delta * 12.0;
         }
     }
 }
 
 export function criarSpeeder(corNeon = 0x00ffff) {
-    // Escala equivalente à da mota/skate (ESCALA 0.38 com LARGURA_MULT 1.7
-    // → ~0.65 no eixo longo). O speeder é construído maior internamente,
-    // por isso usamos um valor um pouco abaixo para igualar visualmente.
-    const ESCALA = 1.0;
+    // Escala ajustada para 0.75 como meio-termo ideal: claramente maior e mais
+    // imponente que a mota/skate, mas sem ocupar espaço excessivo na arena.
+    const ESCALA = 0.75;
     const raiz = new THREE.Group();
     const corpo = new THREE.Group();
     raiz.add(corpo);
@@ -77,32 +77,32 @@ export function criarSpeeder(corNeon = 0x00ffff) {
     const matChassi = new THREE.MeshStandardMaterial({
         map: texChDiff, normalMap: texChNor, roughnessMap: texChRou,
         metalnessMap: texChMet, aoMap: texChAO,
-        color: 0x222233, metalness: 1.0, roughness: 0.45
+        color: 0x1a1a24, metalness: 1.0, roughness: 0.45
     });
 
     const matGreeble = new THREE.MeshStandardMaterial({
         map: texGrDiff, normalMap: texGrNor, roughnessMap: texGrRou,
         metalnessMap: texGrMet,
-        color: 0x444455, metalness: 0.9, roughness: 0.55
+        color: 0x333344, metalness: 0.9, roughness: 0.55
     });
 
     const matVidro = new THREE.MeshPhysicalMaterial({
         map: texViDiff, normalMap: texViNor, roughnessMap: texViRou,
         alphaMap: texViOpa,
-        color: 0x223344, transparent: true, opacity: 0.55,
+        color: 0x112233, transparent: true, opacity: 0.65,
         roughness: 0.1, metalness: 0.4, transmission: 0.4
     });
 
     // Materiais nativos (sem textura) — neon, luzes, pneus
     const matNeon = new THREE.MeshStandardMaterial({
-        color: corNeon, emissive: corNeon, emissiveIntensity: 2.5,
-        metalness: 0.3, roughness: 0.35, toneMapped: false
+        color: corNeon, emissive: corNeon, emissiveIntensity: 4.0,
+        metalness: 0.1, roughness: 0.2, toneMapped: false
     });
     const matFarol = new THREE.MeshBasicMaterial({
         color: 0xffffff, toneMapped: false
     });
     const matTaillight = new THREE.MeshStandardMaterial({
-        color: 0xff2244, emissive: 0xff2244, emissiveIntensity: 1.8,
+        color: 0xff2244, emissive: 0xff2244, emissiveIntensity: 2.0,
         roughness: 0.3, metalness: 0.2, toneMapped: false
     });
     const matEscape = new THREE.MeshStandardMaterial({
@@ -110,10 +110,10 @@ export function criarSpeeder(corNeon = 0x00ffff) {
         roughness: 0.3, metalness: 0.5, toneMapped: false
     });
     const matPneu = new THREE.MeshStandardMaterial({
-        color: 0x0a0a0a, roughness: 0.95, metalness: 0.05
+        color: 0x0f0f0f, roughness: 0.95, metalness: 0.05
     });
     const matJante = new THREE.MeshStandardMaterial({
-        color: 0xbbbbcc, metalness: 1.0, roughness: 0.25
+        color: 0xaaaaaa, metalness: 1.0, roughness: 0.25
     });
     const matEdge = new THREE.LineBasicMaterial({
         color: corNeon, transparent: true, opacity: 0.85
@@ -128,247 +128,203 @@ export function criarSpeeder(corNeon = 0x00ffff) {
         corpo.add(e);
     }
 
-    // ─── Chassis inferior (Box) ────────────────────────────────────────────
-    const chassisInf = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.4, 1.5), matChassi);
-    chassisInf.position.set(0, 0.4, 0);
+    // ─── 1. Monocoque Central / Fuselagem (Box) ────────────────────────────
+    const chassisInf = new THREE.Mesh(new THREE.BoxGeometry(3.5, 0.32, 0.8), matChassi);
+    chassisInf.position.set(0, 0.32, 0);
     chassisInf.castShadow = true;
     chassisInf.geometry.setAttribute('uv2', chassisInf.geometry.attributes.uv);
     corpo.add(chassisInf);
     addEdges(chassisInf);
 
-    // ─── Hood (Box) com painel greeble ─────────────────────────────────────
-    const hood = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.18, 1.3), matGreeble);
-    hood.position.set(0.85, 0.72, 0);
-    hood.castShadow = true;
-    corpo.add(hood);
+    // ─── 2. Bico F1 (Cone) e Asa Frontal ───────────────────────────────────
+    const nose = new THREE.Mesh(new THREE.ConeGeometry(0.38, 1.2, 4), matChassi);
+    nose.position.set(2.1, 0.32, 0);
+    nose.rotation.z = -Math.PI / 2;
+    nose.scale.set(1.0, 1.0, 0.7);
+    nose.castShadow = true;
+    corpo.add(nose);
 
-    // ─── Cockpit / cabine (Box) ────────────────────────────────────────────
-    const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.5, 1.15), matChassi);
-    cabin.position.set(-0.1, 0.95, 0);
+    const frontWing = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.06, 2.2), matGreeble);
+    frontWing.position.set(2.4, 0.18, 0);
+    corpo.add(frontWing);
+
+    [-1, 1].forEach(s => {
+        const endplate = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.25, 0.06), matChassi);
+        endplate.position.set(2.4, 0.25, s * 1.07);
+        corpo.add(endplate);
+        addEdges(endplate);
+    });
+
+    // ─── 3. Cockpit e Para-brisas do Piloto ────────────────────────────────
+    const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.35, 0.76), matChassi);
+    cabin.position.set(-0.1, 0.65, 0);
     cabin.castShadow = true;
     corpo.add(cabin);
     addEdges(cabin);
 
-    // ─── Para-brisas inclinado (Plane) ─────────────────────────────────────
-    const winFrente = new THREE.Mesh(new THREE.PlaneGeometry(1.0, 0.65), matVidro);
-    winFrente.position.set(0.55, 1.0, 0);
-    winFrente.rotation.z = -Math.PI * 0.30;
+    const winFrente = new THREE.Mesh(new THREE.PlaneGeometry(0.72, 0.45), matVidro);
+    winFrente.position.set(0.45, 0.72, 0);
+    winFrente.rotation.z = -Math.PI * 0.35;
     winFrente.rotation.y = Math.PI / 2;
     corpo.add(winFrente);
 
-    // ─── Janelas laterais (Planes) ─────────────────────────────────────────
     [-1, 1].forEach(s => {
-        const win = new THREE.Mesh(new THREE.PlaneGeometry(1.0, 0.35), matVidro);
-        win.position.set(-0.1, 0.98, s * 0.58);
-        win.rotation.y = s > 0 ? 0 : Math.PI;
-        corpo.add(win);
+        const winLat = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 0.25), matVidro);
+        winLat.position.set(-0.05, 0.70, s * 0.385);
+        winLat.rotation.y = s > 0 ? 0 : Math.PI;
+        corpo.add(winLat);
     });
 
-    // ─── Vidro traseiro inclinado ──────────────────────────────────────────
-    const winTras = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 0.5), matVidro);
-    winTras.position.set(-0.8, 0.95, 0);
-    winTras.rotation.z = Math.PI * 0.28;
-    winTras.rotation.y = -Math.PI / 2;
-    corpo.add(winTras);
-
-    // ─── Convés traseiro (Box) ─────────────────────────────────────────────
-    const deck = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.2, 1.4), matGreeble);
-    deck.position.set(-1.1, 0.72, 0);
-    corpo.add(deck);
-
-    // ─── Nariz cunha (Cone) ────────────────────────────────────────────────
-    const nose = new THREE.Mesh(new THREE.ConeGeometry(0.55, 1.1, 4), matChassi);
-    nose.position.set(2.05, 0.42, 0);
-    nose.rotation.z = -Math.PI / 2;
-    nose.scale.set(1.0, 1.0, 0.55);
-    nose.castShadow = true;
-    corpo.add(nose);
-
-    // ─── Splitter frontal (Box) ────────────────────────────────────────────
-    const splitter = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.08, 1.7), matGreeble);
-    splitter.position.set(1.85, 0.16, 0);
-    corpo.add(splitter);
-
-    // ─── Saias laterais (Boxes) ────────────────────────────────────────────
+    // ─── 4. Sidepods e Entradas de Ar F1 ───────────────────────────────────
     [-1, 1].forEach(s => {
-        const skirt = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.18, 0.12), matGreeble);
-        skirt.position.set(0, 0.22, s * 0.78);
-        corpo.add(skirt);
+        const sidepod = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.38, 0.55), matGreeble);
+        sidepod.position.set(-0.2, 0.35, s * 0.65);
+        corpo.add(sidepod);
+        addEdges(sidepod);
+
+        const intake = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.30, 0.45), matChassi);
+        intake.position.set(0.65, 0.35, s * 0.65);
+        corpo.add(intake);
     });
 
-    // ─── Spoiler traseiro (Box + 2 Cylinders) ──────────────────────────────
-    const wing = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.08, 1.4), matChassi);
-    wing.position.set(-1.55, 1.05, 0);
-    corpo.add(wing);
-    addEdges(wing);
+    // ─── 5. Airbox e Barbatana de Tubarão (Shark Fin) ──────────────────────
+    const airbox = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.35, 0.45), matChassi);
+    airbox.position.set(-0.6, 0.95, 0);
+    corpo.add(airbox);
+
+    const sharkFin = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.30, 0.06), matGreeble);
+    sharkFin.position.set(-1.2, 0.85, 0);
+    corpo.add(sharkFin);
+
+    // ─── 6. Asa Traseira F1 e Difusor ──────────────────────────────────────
+    const rearWingMain = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.08, 2.0), matChassi);
+    rearWingMain.position.set(-1.8, 1.15, 0);
+    corpo.add(rearWingMain);
+    addEdges(rearWingMain);
+
+    const rearWingFlap = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.06, 1.9), matNeon);
+    rearWingFlap.position.set(-1.95, 1.25, 0);
+    corpo.add(rearWingFlap);
+
     [-1, 1].forEach(s => {
-        const strut = new THREE.Mesh(
-            new THREE.CylinderGeometry(0.05, 0.05, 0.32, 12), matJante
-        );
-        strut.position.set(-1.55, 0.88, s * 0.5);
-        corpo.add(strut);
+        const rwEndplate = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.6, 0.06), matGreeble);
+        rwEndplate.position.set(-1.8, 0.95, s * 0.97);
+        corpo.add(rwEndplate);
+
+        const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.65, 8), matJante);
+        pillar.position.set(-1.6, 0.65, s * 0.3);
+        corpo.add(pillar);
     });
 
-    // ─── Tira underglow (Box emissivo) ─────────────────────────────────────
-    const underglow = new THREE.Mesh(
-        new THREE.BoxGeometry(3.2, 0.05, 1.0),
-        new THREE.MeshBasicMaterial({
-            color: corNeon, transparent: true, opacity: 0.95, toneMapped: false
-        })
-    );
-    underglow.position.y = 0.12;
-    corpo.add(underglow);
+    const diffuser = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.15, 1.4), matGreeble);
+    diffuser.position.set(-1.75, 0.22, 0);
+    corpo.add(diffuser);
 
-    // ─── Tira neon na cintura (Box emissivo) ───────────────────────────────
-    [-1, 1].forEach(s => {
-        const stripe = new THREE.Mesh(new THREE.BoxGeometry(3.0, 0.04, 0.03), matNeon);
-        stripe.position.set(0, 0.55, s * 0.76);
-        corpo.add(stripe);
-    });
-    // tira no tejadilho
-    const roofStripe = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.03, 0.06), matNeon);
-    roofStripe.position.set(-0.1, 1.22, 0);
-    corpo.add(roofStripe);
-
-    // ─── Faróis frontais: Cylinder bezel + Sphere lente ────────────────────
-    [-1, 1].forEach(s => {
-        const bezel = new THREE.Mesh(
-            new THREE.CylinderGeometry(0.13, 0.16, 0.12, 16), matJante
-        );
-        bezel.rotation.z = Math.PI / 2;
-        bezel.position.set(1.65, 0.55, s * 0.5);
-        corpo.add(bezel);
-
-        const farol = new THREE.Mesh(new THREE.SphereGeometry(0.1, 12, 8), matFarol);
-        farol.position.set(1.72, 0.55, s * 0.5);
-        corpo.add(farol);
-    });
-
-    // ─── Luzes traseiras (Boxes emissivos) ─────────────────────────────────
-    const taillights = [];
-    [-1, 1].forEach(s => {
-        const tail = new THREE.Mesh(
-            new THREE.BoxGeometry(0.06, 0.18, 0.45), matTaillight.clone()
-        );
-        tail.position.set(-1.85, 0.55, s * 0.45);
-        corpo.add(tail);
-        taillights.push(tail);
-    });
-    // Barra LED traseira (Box emissivo entre as duas luzes)
-    const ledBar = new THREE.Mesh(
-        new THREE.BoxGeometry(0.05, 0.06, 0.85),
-        new THREE.MeshBasicMaterial({ color: 0xff2244, toneMapped: false })
-    );
-    ledBar.position.set(-1.85, 0.65, 0);
-    corpo.add(ledBar);
-
-    // ─── Grelha frontal (Box com greeble) ──────────────────────────────────
-    const grelha = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.2, 0.9), matGreeble);
-    grelha.position.set(1.62, 0.35, 0);
-    corpo.add(grelha);
-
-    // ─── Escapes (2 Cylinders) ─────────────────────────────────────────────
-    const escapes = [];
-    [-1, 1].forEach(s => {
-        const escape = new THREE.Mesh(
-            new THREE.CylinderGeometry(0.08, 0.1, 0.32, 14), matEscape.clone()
-        );
-        escape.rotation.z = Math.PI / 2;
-        escape.position.set(-1.92, 0.32, s * 0.32);
-        corpo.add(escape);
-        escapes.push(escape);
-    });
-
-    // ─── Rodas (4): Cylinder pneu + Torus rim accent + Cylinder hub ────────
+    // ─── 7. Rodas F1 e Braços de Suspensão (Wishbones) ─────────────────────
     const rodas = [];
     const posicoesRodas = [
-        [-1.15, 0.32,  0.78], [1.05, 0.32,  0.78],
-        [-1.15, 0.32, -0.78], [1.05, 0.32, -0.78]
+        [1.35,  0.36,  1.05, true],  // Dianteira Esq
+        [1.35,  0.36, -1.05, true],  // Dianteira Dir
+        [-1.35, 0.40,  1.10, false], // Traseira Esq
+        [-1.35, 0.40, -1.10, false]  // Traseira Dir
     ];
+
     posicoesRodas.forEach(p => {
         const rodaGrupo = new THREE.Group();
         rodaGrupo.position.set(p[0], p[1], p[2]);
 
-        // Pneu (CylinderGeometry)
-        const pneu = new THREE.Mesh(
-            new THREE.CylinderGeometry(0.36, 0.36, 0.24, 22), matPneu
-        );
-        pneu.rotation.z = Math.PI / 2;
+        const isFront = p[3];
+        const raio = isFront ? 0.36 : 0.40;
+        const largura = isFront ? 0.28 : 0.34;
+
+        // Pneu (CylinderGeometry) — alinhado no eixo Z (rotation.x = PI/2)
+        const pneu = new THREE.Mesh(new THREE.CylinderGeometry(raio, raio, largura, 24), matPneu);
+        pneu.rotation.x = Math.PI / 2;
         pneu.castShadow = true;
         rodaGrupo.add(pneu);
 
-        // Jante interior (Cylinder)
-        const jante = new THREE.Mesh(
-            new THREE.CylinderGeometry(0.22, 0.22, 0.26, 16), matJante
-        );
-        jante.rotation.z = Math.PI / 2;
+        // Jante interior metálica
+        const jante = new THREE.Mesh(new THREE.CylinderGeometry(raio * 0.6, raio * 0.6, largura + 0.04, 16), matJante);
+        jante.rotation.x = Math.PI / 2;
         rodaGrupo.add(jante);
 
-        // Aro neon (Torus)
+        // Aro Neon embutido brilhante (CylinderGeometry tal como na mota)
+        const aroNeon = new THREE.Mesh(new THREE.CylinderGeometry(raio * 0.85, raio * 0.85, largura + 0.02, 32), matNeon);
+        aroNeon.rotation.x = Math.PI / 2;
+        rodaGrupo.add(aroNeon);
+
+        // Aro neon exterior (Torus) para acentuar a silhueta
         const aro = new THREE.Mesh(
-            new THREE.TorusGeometry(0.30, 0.025, 8, 24),
+            new THREE.TorusGeometry(raio * 0.75, 0.03, 8, 24),
             new THREE.MeshBasicMaterial({ color: corNeon, toneMapped: false })
         );
-        aro.rotation.y = Math.PI / 2;
         rodaGrupo.add(aro);
 
         corpo.add(rodaGrupo);
         rodas.push(rodaGrupo);
+
+        // Braço de suspensão (Wishbone) conectando ao chassi
+        const wishbone = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.7, 8), matJante);
+        wishbone.position.set(p[0], p[1], p[2] * 0.55);
+        wishbone.rotation.x = Math.PI / 2;
+        corpo.add(wishbone);
     });
 
-    // ─── Antena (Cylinder fino) ────────────────────────────────────────────
-    const antena = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.015, 0.015, 0.45, 8), matJante
+    // ─── 8. Iluminação Underglow e Detalhes (Sem o anel estranho!) ─────────
+    const underglowPlate = new THREE.Mesh(
+        new THREE.BoxGeometry(3.0, 0.05, 0.8),
+        new THREE.MeshBasicMaterial({ color: corNeon, transparent: true, opacity: 0.9, toneMapped: false })
     );
-    antena.position.set(-0.65, 1.45, 0.45);
-    corpo.add(antena);
-    const antenaTopo = new THREE.Mesh(
-        new THREE.SphereGeometry(0.04, 10, 8),
-        new THREE.MeshBasicMaterial({ color: corNeon, toneMapped: false })
-    );
-    antenaTopo.position.set(-0.65, 1.7, 0.45);
-    corpo.add(antenaTopo);
+    underglowPlate.position.set(0, 0.15, 0);
+    corpo.add(underglowPlate);
 
-    // ─── Anel underglow tipo halo (Ring) sob o carro ───────────────────────
-    const halo = new THREE.Mesh(
-        new THREE.RingGeometry(0.6, 1.5, 32),
-        new THREE.MeshBasicMaterial({
-            color: corNeon, transparent: true, opacity: 0.7,
-            side: THREE.DoubleSide, toneMapped: false, depthWrite: false
-        })
-    );
-    halo.rotation.x = -Math.PI / 2;
-    halo.position.y = 0.02;
-    corpo.add(halo);
+    const taillights = [];
+    [-1, 1].forEach(s => {
+        const tail = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.15, 0.35), matTaillight.clone());
+        tail.position.set(-1.8, 0.45, s * 0.5);
+        corpo.add(tail);
+        taillights.push(tail);
+    });
 
-    // ─── Luzes reais (PointLights) — iluminam a cena à volta do carro ─────
-    // Underglow neon — point light azul/ciano no chão
-    const luzUnderglow = new THREE.PointLight(corNeon, 2.5, 5.0, 2);
-    luzUnderglow.position.set(0, 0.05, 0);
+    // Rain light F1 central
+    const rainLight = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.12, 0.12), matTaillight.clone());
+    rainLight.position.set(-1.85, 0.28, 0);
+    corpo.add(rainLight);
+    taillights.push(rainLight);
+
+    const escapes = [];
+    [-1, 1].forEach(s => {
+        const escape = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.12, 0.35, 14), matEscape.clone());
+        escape.rotation.z = Math.PI / 2;
+        escape.position.set(-1.85, 0.38, s * 0.25);
+        corpo.add(escape);
+        escapes.push(escape);
+    });
+
+    // Luzes PointLights reais
+    const luzUnderglow = new THREE.PointLight(corNeon, 2.5, 4.5, 2);
+    luzUnderglow.position.set(0, 0.1, 0);
     corpo.add(luzUnderglow);
 
-    // Faróis frontais — point lights brancos a iluminar à frente
     [-1, 1].forEach(s => {
         const luzFarol = new THREE.PointLight(0xffffee, 1.2, 4.5, 2);
-        luzFarol.position.set(1.9, 0.55, s * 0.5);
+        luzFarol.position.set(2.2, 0.4, s * 0.4);
         corpo.add(luzFarol);
     });
 
-    // Luzes traseiras — point lights vermelhos suaves
     const luzTras = new THREE.PointLight(0xff2244, 0.8, 3.0, 2);
-    luzTras.position.set(-2.0, 0.55, 0);
+    luzTras.position.set(-2.0, 0.45, 0);
     corpo.add(luzTras);
 
-    // Escapes — point light laranja-quente atrás
     const luzEscape = new THREE.PointLight(0xff5522, 1.0, 2.5, 2);
-    luzEscape.position.set(-2.1, 0.32, 0);
+    luzEscape.position.set(-2.0, 0.38, 0);
     corpo.add(luzEscape);
 
     // O build acima tem a frente em +X. Rodar para -Z (convenção do input).
     corpo.rotation.y = Math.PI / 2;
 
     _speederAnimData.push({
-        underglow: underglow, escapes: escapes,
+        underglow: underglowPlate, escapes: escapes,
         taillights: taillights, rodas: rodas,
         luzUnderglow: luzUnderglow, luzEscape: luzEscape
     });

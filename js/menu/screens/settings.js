@@ -184,7 +184,10 @@ function buildRowDefs(settings) {
           index: ['perspective','orthographic'].indexOf(settings.visual.cameraMode), glow: '#00eaff' },
         { id: 'layout',  label: 'CONTROLS',     kind: 'discrete',
           options: [{ value: 'wasd', label: 'W A S D' }, { value: 'arrows', label: 'ARROWS' }],
-          index: ['wasd','arrows'].indexOf(settings.controls.layout), glow: '#59ff7c' }
+          index: ['wasd','arrows'].indexOf(settings.controls.layout), glow: '#59ff7c' },
+        { id: 'aiDifficulty', label: 'AI DIFFICULTY', kind: 'discrete',
+          options: [{ value: 'easy', label: 'EASY' }, { value: 'medium', label: 'MEDIUM' }, { value: 'hard', label: 'HARD' }],
+          index: Math.max(0, ['easy','medium','hard'].indexOf(settings.aiDifficulty || 'medium')), glow: '#ff7a00' }
     ];
 }
 
@@ -205,6 +208,7 @@ function applyToSettings() {
         if (r.def.id === 'quality')    settingsRef.visual.quality = v;
         if (r.def.id === 'cameraMode') settingsRef.visual.cameraMode = v;
         if (r.def.id === 'layout')     settingsRef.controls.layout = v;
+        if (r.def.id === 'aiDifficulty') settingsRef.aiDifficulty = v;
     });
     if (callbacks.onChange) callbacks.onChange(settingsRef);
 }

@@ -29,7 +29,8 @@ var defaults = {
         mapId: 'space'
     },
     gameMode: 'ai',                // 'ai' | 'local1v1' | 'split1v1'
-    vidasIniciais: 3               // 1 | 3 | 5 — quantas vidas cada jogador começa por ronda
+    vidasIniciais: 3,              // 1 | 3 | 5 — quantas vidas cada jogador começa por ronda
+    aiDifficulty: 'medium'         // 'easy' | 'medium' | 'hard'
 };
 
 function deepClone(o) { return JSON.parse(JSON.stringify(o)); }

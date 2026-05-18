@@ -267,7 +267,10 @@ function buildGame() {
         var iaJ2Ativa = (modoJogoAtual !== 'local1v1' && modoJogoAtual !== 'split1v1');
         definirIAJ1Ativa(false);
         definirIAJ2Ativa(iaJ2Ativa);
-        if (iaJ2Ativa) inicializarIA(skateJogador2, trailSkate, trailMota, ARENA / 2);
+        if (iaJ2Ativa) {
+            var aiDif = (menuSettings && menuSettings.aiDifficulty) || 'medium';
+            inicializarIA(skateJogador2, trailSkate, trailMota, ARENA / 2, aiDif);
+        }
 
         // Configurar e arrancar a primeira ronda
         configurarGameLogic({

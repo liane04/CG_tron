@@ -23,6 +23,14 @@ var OPTIONS = [
         hint: 'DOIS JOGADORES  -  CAMARA TOPO',
         icon: '2P',
         desc: 'SETAS  vs  WASD     NO MESMO TECLADO'
+    },
+    {
+        id: 'split1v1',
+        label: '1V1  SPLIT',
+        color: 0xffc83a,
+        hint: 'DOIS JOGADORES  -  TELA DIVIDIDA',
+        icon: 'SP',
+        desc: 'ECRA DIVIDIDO  -  CAMARA 3a PESSOA'
     }
 ];
 

@@ -95,6 +95,7 @@ export function adicionarPonto(trail, posicao) {
         mesh.position.y = 0.4 + (Math.random() - 0.5) * 0.2;
         mesh.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
         mesh.scale.setScalar(1.0);
+        mesh.userData.baseSize = 1.0;
     } else if (trail.id === 'glitch') {
         const size = 0.3 + Math.random() * 0.4;
         mesh.position.copy(p);
@@ -103,6 +104,7 @@ export function adicionarPonto(trail, posicao) {
         mesh.position.z += (Math.random() - 0.5) * 0.4;
         mesh.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
         mesh.scale.set(size, size, 1);
+        mesh.userData.baseSize = size;
     } else if (trail.ultimo) {
         const dist = trail.ultimo.distanceTo(p) + 0.1;
         mesh.position.copy(trail.ultimo);
@@ -173,27 +175,34 @@ export function atualizarTrail(trail, dt, camara) {
             // Pulso base
             const pulse = 1 + Math.sin(agora * 0.01 + objeto.position.x + objeto.position.z) * 0.15;
             
-            // Escala dinâmica baseada na distância da câmara para manter visibilidade
-            let finalScale = pulse;
+            let fatorCompensacao = 1.0;
             if (camara) {
-                const distCam = objeto.position.distanceTo(camara.position);
-                // Compensa o tamanho se estivermos longe (câmara aérea)
-                const fatorCompensacao = Math.max(1.0, distCam / 25.0); 
-                finalScale *= fatorCompensacao;
+                if (camara.isOrthographicCamera) {
+                    fatorCompensacao = 1.0;
+                } else {
+                    const distCam = objeto.position.distanceTo(camara.position);
+                    fatorCompensacao = THREE.MathUtils.clamp(distCam / 20.0, 0.5, 1.8);
+                }
             }
             
+            const finalScale = pulse * fatorCompensacao * (objeto.userData.baseSize || 1.0);
             objeto.scale.setScalar(finalScale);
         } else if (isGlitch) {
             // Rotação lenta para os estilhaços
             objeto.rotation.x += dt * 0.5;
             objeto.rotation.z += dt * 0.3;
             
-            // Compensação de escala para glitch também
+            let fatorGlitch = 1.0;
             if (camara) {
-                const distCam = objeto.position.distanceTo(camara.position);
-                const scale = Math.max(1.0, distCam / 30.0);
-                objeto.scale.setScalar(scale);
+                if (camara.isOrthographicCamera) {
+                    fatorGlitch = 1.0;
+                } else {
+                    const distCam = objeto.position.distanceTo(camara.position);
+                    fatorGlitch = THREE.MathUtils.clamp(distCam / 25.0, 0.5, 1.8);
+                }
             }
+            const base = objeto.userData.baseSize || 0.5;
+            objeto.scale.set(base * fatorGlitch, base * fatorGlitch, 1);
         } else if (isWireframe) {
             const intensidadeTremor = 0.15;
             const velocidadeTremor = 0.05;

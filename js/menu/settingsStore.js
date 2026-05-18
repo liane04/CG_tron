@@ -20,7 +20,7 @@ var defaults = {
         colorId: 'cyan',
         trailId: 'wireframe'
     },
-    garage2: {                     // Personalização do P2 (usada apenas no modo local1v1)
+    garage2: {                     // Personalização do P2 (usada nos modos local1v1 e split1v1)
         vehicleId: 'skate',
         colorId: 'magenta',
         trailId: 'wireframe'
@@ -28,7 +28,7 @@ var defaults = {
     track: {
         mapId: 'space'
     },
-    gameMode: 'ai',                // 'ai' (single-player vs IA) | 'local1v1' (split-keyboard, top-down)
+    gameMode: 'ai',                // 'ai' | 'local1v1' | 'split1v1'
     vidasIniciais: 3,              // 1 | 3 | 5 — quantas vidas cada jogador começa por ronda
     aiDifficulty: 'medium'         // 'easy' | 'medium' | 'hard'
 };

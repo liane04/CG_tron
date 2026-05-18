@@ -845,7 +845,7 @@ function corHexJogador(id) {
 }
 
 function nomeJogador(id) {
-    if (estado.gameMode === 'local1v1') return id === 1 ? 'PLAYER 1' : 'PLAYER 2';
+    if (estado.gameMode === 'local1v1' || estado.gameMode === 'split1v1') return id === 1 ? 'PLAYER 1' : 'PLAYER 2';
     return id === 1 ? 'PLAYER' : 'AI';
 }
 
@@ -888,7 +888,7 @@ function mostrarResultado(venceuId) {
         sub.style.display = 'block';
     } else {
         // ─── Fim de ronda normal ───────────────────────────────────
-        var texto = (estado.gameMode === 'local1v1')
+        var texto = (estado.gameMode === 'local1v1' || estado.gameMode === 'split1v1')
             ? (venceuId === 1 ? 'PLAYER 1 WINS' : 'PLAYER 2 WINS')
             : (venceuId === 1 ? 'PLAYER WINS' : 'AI WINS');
         titulo.textContent = texto;
@@ -1102,8 +1102,8 @@ function atualizarHUD(jogadorPerdeuVida) {
     var p2 = hud.querySelector('.hud-p2');
     var meio = hud.querySelector('.hud-meio');
 
-    var nomeP1 = estado.gameMode === 'local1v1' ? 'P1' : 'YOU';
-    var nomeP2 = estado.gameMode === 'local1v1' ? 'P2' : 'AI';
+    var nomeP1 = (estado.gameMode === 'local1v1' || estado.gameMode === 'split1v1') ? 'P1' : 'YOU';
+    var nomeP2 = (estado.gameMode === 'local1v1' || estado.gameMode === 'split1v1') ? 'P2' : 'AI';
     var corP1 = corHexJogador(1);
     var corP2 = corHexJogador(2);
 

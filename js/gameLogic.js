@@ -360,33 +360,30 @@ function verificarColisaoDrone(posVeiculo) {
 function alocarObjetoExplosao(cena) {
     var grupo = new THREE.Group();
 
-    // 1. Núcleo de Plasma (3 Camadas Concêntricas - Menor e menos transparente)
-    // Camada 1: Núcleo denso interno
-    var coreGeo1 = new THREE.IcosahedronGeometry(0.7, 2);
+    // 1. Núcleo de Plasma (3 Camadas Concêntricas - Facetadas e Digitais)
+    var coreGeo1 = new THREE.IcosahedronGeometry(0.7, 1);
     var coreMat1 = new THREE.MeshBasicMaterial({
         color: 0xffffff, toneMapped: false, transparent: false, wireframe: false
     });
     var core1 = new THREE.Mesh(coreGeo1, coreMat1);
     grupo.add(core1);
 
-    // Camada 2: Grelha de energia intermédia
-    var coreGeo2 = new THREE.OctahedronGeometry(1.0, 2);
+    var coreGeo2 = new THREE.OctahedronGeometry(1.0, 1);
     var coreMat2 = new THREE.MeshBasicMaterial({
         color: 0xffffff, toneMapped: false, transparent: true, opacity: 0.85, wireframe: true
     });
     var core2 = new THREE.Mesh(coreGeo2, coreMat2);
     grupo.add(core2);
 
-    // Camada 3: Aura de plasma externa
-    var coreGeo3 = new THREE.DodecahedronGeometry(1.3, 1);
+    var coreGeo3 = new THREE.DodecahedronGeometry(1.3, 0);
     var coreMat3 = new THREE.MeshBasicMaterial({
         color: 0xffffff, toneMapped: false, transparent: true, opacity: 0.7
     });
     var core3 = new THREE.Mesh(coreGeo3, coreMat3);
     grupo.add(core3);
 
-    // 2. Ondas de Choque Duplas (Dois anéis de choque com orientações diferentes)
-    var ringGeo1 = new THREE.RingGeometry(0.1, 0.8, 64);
+    // 2. Ondas de Choque Triplas (Três anéis de choque com orientações e rotações diferentes)
+    var ringGeo1 = new THREE.RingGeometry(0.1, 0.8, 32);
     var ringMat1 = new THREE.MeshBasicMaterial({
         color: 0xffffff, toneMapped: false, transparent: true, opacity: 1.0,
         side: THREE.DoubleSide, depthWrite: false
@@ -396,35 +393,49 @@ function alocarObjetoExplosao(cena) {
     ring1.position.y = 0.2;
     grupo.add(ring1);
 
-    var ringGeo2 = new THREE.RingGeometry(0.2, 0.9, 64);
+    var ringGeo2 = new THREE.RingGeometry(0.2, 0.9, 32);
     var ringMat2 = new THREE.MeshBasicMaterial({
         color: 0xffffff, toneMapped: false, transparent: true, opacity: 0.8,
         side: THREE.DoubleSide, depthWrite: false
     });
     var ring2 = new THREE.Mesh(ringGeo2, ringMat2);
-    ring2.rotation.x = -Math.PI / 3; // Inclinado para dar volume 3D
+    ring2.rotation.x = -Math.PI / 3;
     ring2.rotation.y = Math.PI / 4;
     ring2.position.y = 0.5;
     grupo.add(ring2);
 
-    // 3. Flash e Fogo (Luzes)
+    var ringGeo3 = new THREE.RingGeometry(0.1, 0.8, 32);
+    var ringMat3 = new THREE.MeshBasicMaterial({
+        color: 0xffffff, toneMapped: false, transparent: true, opacity: 0.9,
+        side: THREE.DoubleSide, depthWrite: false
+    });
+    var ring3 = new THREE.Mesh(ringGeo3, ringMat3);
+    ring3.rotation.y = Math.PI / 2;
+    ring3.position.y = 0.5;
+    grupo.add(ring3);
+
+    // 3. Flash (Luz de Impacto)
     var flash = new THREE.PointLight(0xffffff, 0, 80, 2);
     flash.position.y = 2.0;
     grupo.add(flash);
 
-    var fogo = new THREE.PointLight(0xffffff, 0, 35, 2);
-    fogo.position.y = 1.5;
-    grupo.add(fogo);
+    // 4. Materiais Partilhados das Partículas (Evita Overhead de 95 instâncias individuais)
+    var matA = new THREE.MeshBasicMaterial({
+        color: 0xffffff, transparent: true, opacity: 1.0, toneMapped: false
+    });
+    var matB = new THREE.MeshBasicMaterial({
+        color: 0xffffff, transparent: true, opacity: 1.0, toneMapped: false
+    });
+    var matC = new THREE.MeshBasicMaterial({
+        color: 0xffffff, transparent: true, opacity: 0.9, toneMapped: false
+    });
 
-    // 4. Partículas A: Destroços Pesados da Armadura (30 Dodecaedros Sólidos)
+    // 5. Partículas A: Destroços Pesados da Armadura (15 Dodecaedros Sólidos)
     var geoA = new THREE.DodecahedronGeometry(0.35, 0);
     var particulasA = [];
-    for (var i = 0; i < 30; i++) {
-        var matA = new THREE.MeshStandardMaterial({
-            color: 0xffffff, roughness: 0.2, metalness: 0.8, transparent: false
-        });
+    for (var i = 0; i < 15; i++) {
         var mA = new THREE.Mesh(geoA, matA);
-        mA.userData.gravidade = 15.0; // Gravidade forte para caírem rápido no chão
+        mA.userData.gravidade = 15.0;
         mA.userData.rotSpeed = new THREE.Vector3();
         mA.userData.vel = new THREE.Vector3();
         mA.userData.aterrou = false;
@@ -433,13 +444,10 @@ function alocarObjetoExplosao(cena) {
         particulasA.push(mA);
     }
 
-    // 5. Partículas B: Bolas Espelidas (40 Esferas Sólidas que ficam na arena)
-    var geoB = new THREE.SphereGeometry(0.2, 8, 8);
+    // 6. Partículas B: Bolas Espelidas / Fragmentos Rápidos (15 Esferas Sólidas)
+    var geoB = new THREE.SphereGeometry(0.2, 5, 5);
     var particulasB = [];
-    for (var j = 0; j < 40; j++) {
-        var matB = new THREE.MeshStandardMaterial({
-            color: 0xffffff, roughness: 0.3, metalness: 0.5, transparent: false
-        });
+    for (var j = 0; j < 15; j++) {
         var mB = new THREE.Mesh(geoB, matB);
         mB.userData.gravidade = 12.0;
         mB.userData.rotSpeed = new THREE.Vector3();
@@ -450,15 +458,12 @@ function alocarObjetoExplosao(cena) {
         particulasB.push(mB);
     }
 
-    // 6. Partículas C: Fumo / Brasas de Energia Flutuantes (25 Octaedros)
+    // 7. Partículas C: Fumo / Brasas de Energia Flutuantes (12 Octaedros)
     var geoC = new THREE.OctahedronGeometry(0.25, 0);
     var particulasC = [];
-    for (var k = 0; k < 25; k++) {
-        var matC = new THREE.MeshBasicMaterial({
-            color: 0xffffff, toneMapped: false, transparent: true, opacity: 0.9
-        });
+    for (var k = 0; k < 12; k++) {
         var mC = new THREE.Mesh(geoC, matC);
-        mC.userData.gravidade = -1.5; // Gravidade negativa faz flutuar para cima
+        mC.userData.gravidade = -1.5;
         mC.userData.rotSpeed = new THREE.Vector3();
         mC.userData.vel = new THREE.Vector3();
         mC.userData.freq = 2 + Math.random() * 3;
@@ -478,14 +483,17 @@ function alocarObjetoExplosao(cena) {
         core3: core3, coreGeo3: coreGeo3, coreMat3: coreMat3,
         ring1: ring1, ringGeo1: ringGeo1, ringMat1: ringMat1,
         ring2: ring2, ringGeo2: ringGeo2, ringMat2: ringMat2,
+        ring3: ring3, ringGeo3: ringGeo3, ringMat3: ringMat3,
         flash: flash,
-        fogo: fogo,
         particulasA: particulasA,
         particulasB: particulasB,
         particulasC: particulasC,
+        matA: matA,
+        matB: matB,
+        matC: matC,
         geoA: geoA, geoB: geoB, geoC: geoC,
         idade: 0,
-        duracao: 2.5,
+        duracao: 2.0,
         trail: null,
         trailDuracao: 1.5,
         trailOpacOrig: 0,
@@ -501,7 +509,6 @@ function inicializarPoolExplosoes(cena) {
             exp.emUso = false;
             exp.grupo.visible = false; // Ao iniciar um mapa novo do zero, limpa a arena completamente
             exp.flash.intensity = 0;
-            exp.fogo.intensity = 0;
         }
         return;
     }
@@ -519,16 +526,13 @@ function inicializarPoolExplosoes(cena) {
         if (oldExp.ringGeo1) oldExp.ringGeo1.dispose();
         if (oldExp.ringMat2) oldExp.ringMat2.dispose();
         if (oldExp.ringGeo2) oldExp.ringGeo2.dispose();
+        if (oldExp.ringMat3) oldExp.ringMat3.dispose();
+        if (oldExp.ringGeo3) oldExp.ringGeo3.dispose();
 
-        for (var i = 0; i < oldExp.particulasA.length; i++) {
-            if (oldExp.particulasA[i].material) oldExp.particulasA[i].material.dispose();
-        }
-        for (var j = 0; j < oldExp.particulasB.length; j++) {
-            if (oldExp.particulasB[j].material) oldExp.particulasB[j].material.dispose();
-        }
-        for (var k = 0; k < oldExp.particulasC.length; k++) {
-            if (oldExp.particulasC[k].material) oldExp.particulasC[k].material.dispose();
-        }
+        if (oldExp.matA) oldExp.matA.dispose();
+        if (oldExp.matB) oldExp.matB.dispose();
+        if (oldExp.matC) oldExp.matC.dispose();
+
         if (oldExp.geoA) oldExp.geoA.dispose();
         if (oldExp.geoB) oldExp.geoB.dispose();
         if (oldExp.geoC) oldExp.geoC.dispose();
@@ -569,16 +573,20 @@ function criarExplosao(posicao, cor, trail) {
 
     exp.ring1.visible = true; exp.ring1.scale.setScalar(1.0); exp.ringMat1.color.set(cor); exp.ringMat1.opacity = 1.0;
     exp.ring2.visible = true; exp.ring2.scale.setScalar(1.0); exp.ringMat2.color.set(cor); exp.ringMat2.opacity = 0.8;
+    exp.ring3.visible = true; exp.ring3.scale.setScalar(1.0); exp.ringMat3.color.set(cor); exp.ringMat3.opacity = 0.9;
 
     exp.flash.color.set(cor); exp.flash.intensity = 150;
-    exp.fogo.color.set(cor); exp.fogo.intensity = 25;
+
+    // Configura as cores dos materiais partilhados e repõe a opacidade inicial
+    exp.matA.color.set(cor); exp.matA.opacity = 1.0;
+    exp.matB.color.set(cor); exp.matB.opacity = 1.0;
+    exp.matC.color.set(cor); exp.matC.opacity = 0.9;
 
     // Destroços Pesados (A)
     for (var i = 0; i < exp.particulasA.length; i++) {
         var mA = exp.particulasA[i];
         mA.visible = true;
         mA.position.set(0, 1.0, 0);
-        mA.material.color.set(cor);
         mA.userData.aterrou = false;
 
         var angA = Math.random() * Math.PI * 2;
@@ -593,7 +601,6 @@ function criarExplosao(posicao, cor, trail) {
         var mB = exp.particulasB[j];
         mB.visible = true;
         mB.position.set(0, 1.0, 0);
-        mB.material.color.set(cor);
         mB.userData.aterrou = false;
 
         var angB = Math.random() * Math.PI * 2;
@@ -608,8 +615,6 @@ function criarExplosao(posicao, cor, trail) {
         var mC = exp.particulasC[k];
         mC.visible = true;
         mC.position.set((Math.random() - 0.5) * 2, 1.0 + (Math.random() - 0.5) * 2, (Math.random() - 0.5) * 2);
-        mC.material.color.set(cor);
-        mC.material.opacity = 0.9;
 
         var angC = Math.random() * Math.PI * 2;
         var velHC = 2 + Math.random() * 4;
@@ -627,42 +632,39 @@ function atualizarExplosao(exp, delta) {
     var t = exp.idade / exp.duracao;
     if (t >= 1) return false;
 
-    // 1. Núcleo de Plasma (3 Camadas) — expansão sequencial e rotação diferencial
+    // 1. Núcleo de Plasma (3 Camadas) — expansão sequencial e rotação super rápida
     if (exp.idade < 0.25) {
         var ct = exp.idade / 0.25;
-        exp.core1.scale.setScalar(0.1 + ct * 1.2); // Núcleo denso menor
-        exp.core2.scale.setScalar(0.1 + ct * 1.5); // Grelha média
-        exp.core3.scale.setScalar(0.1 + ct * 1.8); // Aura externa
+        exp.core1.scale.setScalar(0.1 + ct * 1.5);
+        exp.core2.scale.setScalar(0.1 + ct * 1.8);
+        exp.core3.scale.setScalar(0.1 + ct * 2.2);
     } else if (exp.idade < 0.4) {
         var fadeCore = 1 - (exp.idade - 0.25) / 0.15;
-        exp.core1.scale.setScalar(1.3 * fadeCore);
-        exp.core2.scale.setScalar(1.6 * fadeCore); exp.coreMat2.opacity = 0.85 * fadeCore;
-        exp.core3.scale.setScalar(1.9 * fadeCore); exp.coreMat3.opacity = 0.7 * fadeCore;
+        exp.core1.scale.setScalar(1.6 * fadeCore);
+        exp.core2.scale.setScalar(1.9 * fadeCore); exp.coreMat2.opacity = 0.85 * fadeCore;
+        exp.core3.scale.setScalar(2.3 * fadeCore); exp.coreMat3.opacity = 0.7 * fadeCore;
     } else if (exp.core1.visible) {
         exp.core1.visible = false; exp.core2.visible = false; exp.core3.visible = false;
     }
-    exp.core1.rotation.y += delta * 8.0; exp.core1.rotation.x += delta * 4.0;
-    exp.core2.rotation.y -= delta * 6.0; exp.core2.rotation.z += delta * 5.0;
-    exp.core3.rotation.x -= delta * 5.0; exp.core3.rotation.z -= delta * 3.0;
+    exp.core1.rotation.y += delta * 12.0; exp.core1.rotation.x += delta * 6.0;
+    exp.core2.rotation.y -= delta * 9.0;  exp.core2.rotation.z += delta * 7.5;
+    exp.core3.rotation.x -= delta * 7.5;  exp.core3.rotation.z -= delta * 4.5;
 
     // 2. Luzes — Flash inicial decai de 150 a 0
-    if (exp.idade < 0.2) {
-        exp.flash.intensity = 150 * (1 - exp.idade / 0.2);
+    if (exp.idade < 0.25) {
+        exp.flash.intensity = 150 * (1 - exp.idade / 0.25);
     } else if (exp.flash.intensity !== 0) {
         exp.flash.intensity = 0;
     }
 
-    var fadeFogo = 1 - t;
-    var pulso = 0.7 + 0.3 * Math.sin(exp.idade * 35) * Math.cos(exp.idade * 18);
-    exp.fogo.intensity = 25 * fadeFogo * pulso;
-
-    // 3. Ondas de Choque Duplas
+    // 3. Ondas de Choque Triplas (Swirling e Expansão)
     if (exp.idade < 0.5) {
         var rt1 = exp.idade / 0.5;
         var raio1 = 0.8 + (16.0 - 0.8) * Math.pow(rt1, 0.7);
         var s1 = raio1 / 0.8;
         exp.ring1.scale.set(s1, s1, 1);
         exp.ringMat1.opacity = 1 - rt1;
+        exp.ring1.rotation.z += delta * 4.0;
     } else if (exp.ringMat1.opacity !== 0) {
         exp.ringMat1.opacity = 0; exp.ring1.visible = false;
     }
@@ -673,11 +675,33 @@ function atualizarExplosao(exp, delta) {
         var s2 = raio2 / 0.9;
         exp.ring2.scale.set(s2, s2, 1);
         exp.ringMat2.opacity = 0.8 * (1 - rt2);
+        exp.ring2.rotation.z -= delta * 3.5;
     } else if (exp.ringMat2.opacity !== 0) {
         exp.ringMat2.opacity = 0; exp.ring2.visible = false;
     }
 
-    // 4. Partículas A e B (Destroços Sólidos que ficam na arena)
+    if (exp.idade < 0.55) {
+        var rt3 = exp.idade / 0.55;
+        var raio3 = 0.8 + (15.0 - 0.8) * Math.pow(rt3, 0.75);
+        var s3 = raio3 / 0.8;
+        exp.ring3.scale.set(s3, s3, 1);
+        exp.ringMat3.opacity = 0.9 * (1 - rt3);
+        exp.ring3.rotation.z += delta * 3.0;
+    } else if (exp.ringMat3.opacity !== 0) {
+        exp.ringMat3.opacity = 0; exp.ring3.visible = false;
+    }
+
+    // 4. Partículas A e B (Desvanecimento de Opacidade)
+    var fadeParticula = 1.0;
+    if (t > 0.3) {
+        fadeParticula = 1.0 - (t - 0.3) / 0.7;
+    }
+    if (fadeParticula < 0) fadeParticula = 0;
+
+    exp.matA.opacity = fadeParticula;
+    exp.matB.opacity = fadeParticula;
+    exp.matC.opacity = fadeParticula * 0.9;
+
     for (var i = 0; i < exp.particulasA.length; i++) {
         var pA = exp.particulasA[i];
         if (!pA.userData.aterrou) {
@@ -687,7 +711,6 @@ function atualizarExplosao(exp, delta) {
             pA.rotation.y += pA.userData.rotSpeed.y * delta;
             pA.rotation.z += pA.userData.rotSpeed.z * delta;
 
-            // Se atingir o chão (y=0.2), aterra e fica lá!
             if (pA.position.y <= 0.2) {
                 pA.position.y = 0.2;
                 pA.userData.vel.set(0, 0, 0);
@@ -706,7 +729,6 @@ function atualizarExplosao(exp, delta) {
             pB.rotation.y += pB.userData.rotSpeed.y * delta;
             pB.rotation.z += pB.userData.rotSpeed.z * delta;
 
-            // Se atingir o chão (y=0.2), aterra e fica lá!
             if (pB.position.y <= 0.2) {
                 pB.position.y = 0.2;
                 pB.userData.vel.set(0, 0, 0);
@@ -716,11 +738,7 @@ function atualizarExplosao(exp, delta) {
         }
     }
 
-    // 5. Partículas C (Brasas Flutuantes que desaparecem)
-    var fadeC = 1.0;
-    if (t > 0.4) fadeC = 1 - (t - 0.4) / 0.6;
-    if (fadeC < 0) fadeC = 0;
-
+    // 5. Partículas C (Brasas Flutuantes)
     for (var k = 0; k < exp.particulasC.length; k++) {
         var pC = exp.particulasC[k];
         if (pC.visible) {
@@ -731,7 +749,6 @@ function atualizarExplosao(exp, delta) {
             pC.rotation.x += pC.userData.rotSpeed.x * delta;
             pC.rotation.y += pC.userData.rotSpeed.y * delta;
             pC.rotation.z += pC.userData.rotSpeed.z * delta;
-            if (pC.material) pC.material.opacity = fadeC * 0.9;
         }
     }
 
@@ -752,42 +769,39 @@ function atualizarExplosao(exp, delta) {
 
 function destruirExplosao(exp) {
     exp.emUso = false;
-    // Oculta luzes, anéis, núcleo e brasas flutuantes
+    exp.grupo.visible = false; // Remove todos os destroços imediatamente da visualização
+
     exp.flash.intensity = 0;
-    exp.fogo.intensity = 0;
     exp.core1.visible = false;
     exp.core2.visible = false;
     exp.core3.visible = false;
     exp.ring1.visible = false;
     exp.ring2.visible = false;
+    exp.ring3.visible = false;
 
+    for (var i = 0; i < exp.particulasA.length; i++) {
+        exp.particulasA[i].visible = false;
+    }
+    for (var j = 0; j < exp.particulasB.length; j++) {
+        exp.particulasB[j].visible = false;
+    }
     for (var k = 0; k < exp.particulasC.length; k++) {
         exp.particulasC[k].visible = false;
     }
 
-    // IMPORTANTE: NÃO ocultamos exp.grupo.visible nem particulasA/B!
-    // Garantimos que todos os destroços que ainda não tinham aterrado caem instantaneamente no chão
-    for (var i = 0; i < exp.particulasA.length; i++) {
-        var pA = exp.particulasA[i];
-        if (!pA.userData.aterrou) {
-            pA.position.y = 0.2;
-            pA.userData.vel.set(0, 0, 0);
-            pA.userData.rotSpeed.set(0, 0, 0);
-            pA.userData.aterrou = true;
-        }
-    }
-    for (var j = 0; j < exp.particulasB.length; j++) {
-        var pB = exp.particulasB[j];
-        if (!pB.userData.aterrou) {
-            pB.position.y = 0.2;
-            pB.userData.vel.set(0, 0, 0);
-            pB.userData.rotSpeed.set(0, 0, 0);
-            pB.userData.aterrou = true;
-        }
-    }
-
     if (exp.trail && exp.trail.material && !exp.trailDone) {
         exp.trail.material.opacity = exp.trailOpacOrig;
+    }
+}
+
+// Pré-compila shaders da explosão para eliminar stutters na primeira colisão
+export function preCompilarExplosoes(renderer, cena, camara) {
+    for (var i = 0; i < poolExplosoes.length; i++) {
+        poolExplosoes[i].grupo.visible = true;
+    }
+    renderer.compile(cena, camara);
+    for (var i = 0; i < poolExplosoes.length; i++) {
+        poolExplosoes[i].grupo.visible = false;
     }
 }
 

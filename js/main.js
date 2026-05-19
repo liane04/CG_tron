@@ -15,7 +15,7 @@ import { inicializarInput, atualizarMotas, definirObstaculos, definirIAJ1Ativa, 
 import { criarLuzes } from './luzes.js';
 import { mapas } from './mapas.js';
 import { criarTrail, destruirTrail, atualizarTrail } from './trail.js';
-import { configurarGameLogic, iniciarRonda, atualizarGameLogic, limparGameLogic } from './gameLogic.js';
+import { configurarGameLogic, iniciarRonda, atualizarGameLogic, limparGameLogic, preCompilarExplosoes } from './gameLogic.js';
 import { inicializarIA, atualizarIA } from './ai.js';
 import { criarHudBoost, atualizarHudBoost, destruirHudBoost, mostrarHudBoost } from './hudBoost.js';
 
@@ -320,8 +320,8 @@ function buildGame() {
         onResize(window.innerWidth, window.innerHeight);
 
         // Pré-compilação de shaders na GPU para evitar stutter no primeiro frame
-        renderer.compile(cena, camaraAtiva);
-        if (modoJogoAtual === 'split1v1') renderer.compile(cena, camaraPerspetivaP2);
+        preCompilarExplosoes(renderer, cena, camaraAtiva);
+        if (modoJogoAtual === 'split1v1') preCompilarExplosoes(renderer, cena, camaraPerspetivaP2);
 
         var divider = document.getElementById('split-divider');
         if (!divider) {

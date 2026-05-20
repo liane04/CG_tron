@@ -415,7 +415,9 @@ function alocarObjetoExplosao(cena) {
     grupo.add(ring3);
 
     // 3. Flash (Luz de Impacto)
-    var flash = new THREE.PointLight(0xffffff, 0, 80, 2);
+    // distance=14: ilumina apenas a zona imediata da explosão.
+    // Antes era 80 (arena inteira) + intensity 150 — causava spike enorme na GPU.
+    var flash = new THREE.PointLight(0xffffff, 0, 14, 2);
     flash.position.y = 2.0;
     grupo.add(flash);
 
@@ -575,7 +577,7 @@ function criarExplosao(posicao, cor, trail) {
     exp.ring2.visible = true; exp.ring2.scale.setScalar(1.0); exp.ringMat2.color.set(cor); exp.ringMat2.opacity = 0.8;
     exp.ring3.visible = true; exp.ring3.scale.setScalar(1.0); exp.ringMat3.color.set(cor); exp.ringMat3.opacity = 0.9;
 
-    exp.flash.color.set(cor); exp.flash.intensity = 150;
+    exp.flash.color.set(cor); exp.flash.intensity = 35; // Reduzido de 150: menos spike de GPU
 
     // Configura as cores dos materiais partilhados e repõe a opacidade inicial
     exp.matA.color.set(cor); exp.matA.opacity = 1.0;
@@ -650,9 +652,9 @@ function atualizarExplosao(exp, delta) {
     exp.core2.rotation.y -= delta * 9.0;  exp.core2.rotation.z += delta * 7.5;
     exp.core3.rotation.x -= delta * 7.5;  exp.core3.rotation.z -= delta * 4.5;
 
-    // 2. Luzes — Flash inicial decai de 150 a 0
+    // 2. Luzes — Flash inicial decai de 35 a 0 em 0.25s
     if (exp.idade < 0.25) {
-        exp.flash.intensity = 150 * (1 - exp.idade / 0.25);
+        exp.flash.intensity = 35 * (1 - exp.idade / 0.25);
     } else if (exp.flash.intensity !== 0) {
         exp.flash.intensity = 0;
     }

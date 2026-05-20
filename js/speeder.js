@@ -68,7 +68,7 @@ export function criarSpeeder(corNeon = 0x00ffff) {
      texGrDiff, texGrNor, texGrRou, texGrMet,
      texViDiff, texViNor, texViRou, texViOpa].forEach(t => {
         t.wrapS = t.wrapT = THREE.RepeatWrapping;
-        t.anisotropy = 8;
+        t.anisotropy = 4; // Limitado: valor alto é pesado em GPUs integradas
     });
     [texChDiff, texChNor, texChRou, texChMet, texChAO].forEach(t => t.repeat.set(2, 1));
     [texGrDiff, texGrNor, texGrRou, texGrMet].forEach(t => t.repeat.set(1.5, 1));
@@ -86,11 +86,12 @@ export function criarSpeeder(corNeon = 0x00ffff) {
         color: 0x333344, metalness: 0.9, roughness: 0.55
     });
 
-    const matVidro = new THREE.MeshPhysicalMaterial({
+    const matVidro = new THREE.MeshStandardMaterial({
         map: texViDiff, normalMap: texViNor, roughnessMap: texViRou,
-        alphaMap: texViOpa,
         color: 0x112233, transparent: true, opacity: 0.65,
-        roughness: 0.1, metalness: 0.4, transmission: 0.4
+        roughness: 0.1, metalness: 0.4
+        // MeshPhysicalMaterial com transmission removido: é o material mais pesado do Three.js
+        // (activa um render pass extra). MeshStandard com opacity dá resultado visual equivalente.
     });
 
     // Materiais nativos (sem textura) — neon, luzes, pneus
@@ -120,6 +121,7 @@ export function criarSpeeder(corNeon = 0x00ffff) {
     });
 
     // helper: adicionar arestas neon para a silhueta cyber
+    // Limitado a peças-chave para evitar EdgesGeometry excessivas (custo CPU)
     function addEdges(mesh, mat) {
         const e = new THREE.LineSegments(new THREE.EdgesGeometry(mesh.geometry), mat || matEdge);
         e.position.copy(mesh.position);
@@ -134,7 +136,7 @@ export function criarSpeeder(corNeon = 0x00ffff) {
     chassisInf.castShadow = true;
     chassisInf.geometry.setAttribute('uv2', chassisInf.geometry.attributes.uv);
     corpo.add(chassisInf);
-    addEdges(chassisInf);
+    addEdges(chassisInf); // Apenas chassi principal tem edges (otimização)
 
     // ─── 2. Bico F1 (Cone) e Asa Frontal ───────────────────────────────────
     const nose = new THREE.Mesh(new THREE.ConeGeometry(0.38, 1.2, 4), matChassi);
@@ -152,7 +154,7 @@ export function criarSpeeder(corNeon = 0x00ffff) {
         const endplate = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.25, 0.06), matChassi);
         endplate.position.set(2.4, 0.25, s * 1.07);
         corpo.add(endplate);
-        addEdges(endplate);
+        // addEdges removido de endplates menores (poupança de EdgesGeometry)
     });
 
     // ─── 3. Cockpit e Para-brisas do Piloto ────────────────────────────────
@@ -160,7 +162,7 @@ export function criarSpeeder(corNeon = 0x00ffff) {
     cabin.position.set(-0.1, 0.65, 0);
     cabin.castShadow = true;
     corpo.add(cabin);
-    addEdges(cabin);
+    // addEdges removido do cockpit (poupança de EdgesGeometry)
 
     const winFrente = new THREE.Mesh(new THREE.PlaneGeometry(0.72, 0.45), matVidro);
     winFrente.position.set(0.45, 0.72, 0);
@@ -180,7 +182,7 @@ export function criarSpeeder(corNeon = 0x00ffff) {
         const sidepod = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.38, 0.55), matGreeble);
         sidepod.position.set(-0.2, 0.35, s * 0.65);
         corpo.add(sidepod);
-        addEdges(sidepod);
+        // addEdges removido de sidepods (poupança de EdgesGeometry)
 
         const intake = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.30, 0.45), matChassi);
         intake.position.set(0.65, 0.35, s * 0.65);
@@ -200,7 +202,7 @@ export function criarSpeeder(corNeon = 0x00ffff) {
     const rearWingMain = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.08, 2.0), matChassi);
     rearWingMain.position.set(-1.8, 1.15, 0);
     corpo.add(rearWingMain);
-    addEdges(rearWingMain);
+    addEdges(rearWingMain); // Asa traseira tem edges (destaque visual importante)
 
     const rearWingFlap = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.06, 1.9), matNeon);
     rearWingFlap.position.set(-1.95, 1.25, 0);
@@ -301,24 +303,16 @@ export function criarSpeeder(corNeon = 0x00ffff) {
         escapes.push(escape);
     });
 
-    // Luzes PointLights reais
+    // Luzes PointLights reais — reduzidas a 2 por veículo (performance)
     const luzUnderglow = new THREE.PointLight(corNeon, 2.5, 4.5, 2);
     luzUnderglow.position.set(0, 0.1, 0);
     corpo.add(luzUnderglow);
 
-    [-1, 1].forEach(s => {
-        const luzFarol = new THREE.PointLight(0xffffee, 1.2, 4.5, 2);
-        luzFarol.position.set(2.2, 0.4, s * 0.4);
-        corpo.add(luzFarol);
-    });
-
-    const luzTras = new THREE.PointLight(0xff2244, 0.8, 3.0, 2);
-    luzTras.position.set(-2.0, 0.45, 0);
-    corpo.add(luzTras);
-
+    // Luz de escape (animada em atualizarSpeeder)
     const luzEscape = new THREE.PointLight(0xff5522, 1.0, 2.5, 2);
     luzEscape.position.set(-2.0, 0.38, 0);
     corpo.add(luzEscape);
+    // Nota: faínhas frontais e luz traseira removidas para reduzir carga de iluminação
 
     // O build acima tem a frente em +X. Rodar para -Z (convenção do input).
     corpo.rotation.y = Math.PI / 2;

@@ -64,7 +64,7 @@ export function criarMota(corNeon = 0x00ffff) {
     
     [texPneuDiff, texPneuNor, texPneuRough, texMetalDiff, texMetalNor, texMetalRou, texMetalMet, texMetalAO].forEach(t => {
         t.wrapS = t.wrapT = THREE.RepeatWrapping;
-        t.anisotropy = 16;
+        t.anisotropy = 4; // Limitado: 16x é excessivo e pesado em GPUs integradas
     });
     
     texPneuDiff.repeat.set(3, 1);
@@ -153,41 +153,49 @@ export function criarMota(corNeon = 0x00ffff) {
     // ═══════════════════════════════════════════════════════════════════════════
     // 1. RODAS SÓLIDAS DE ALTA FIDELIDADE
     // ═══════════════════════════════════════════════════════════════════════════
+    // Geometrias partilhadas pelas duas rodas — evita duplicar dados na GPU
+    const geoPneu    = new THREE.CylinderGeometry(RR, RR, LR, 48);
+    const geoAroNeon = new THREE.CylinderGeometry(RR * 0.88, RR * 0.88, LR + 0.02, 48);
+    const geoJante   = new THREE.CylinderGeometry(RR * 0.85, RR * 0.85, LR + 0.04, 32);
+    const geoDisco   = new THREE.CylinderGeometry(RR * 0.5,  RR * 0.5,  LR + 0.08, 32);
+    const geoCubo    = new THREE.CylinderGeometry(RR * 0.15, RR * 0.15, LR + 0.18, 16);
+    const geoRaio    = new THREE.BoxGeometry(0.12, RR * 0.4, 0.06);
+
     function criarRodaDetalhada(posZ) {
         const g = new THREE.Group();
         g.position.set(0, ALTURA_EIXO, posZ);
         
         // Pneu maciço principal
-        const pneu = new THREE.Mesh(new THREE.CylinderGeometry(RR, RR, LR, 48), matPneuTex);
+        const pneu = new THREE.Mesh(geoPneu, matPneuTex);
         pneu.rotation.z = Math.PI / 2;
         g.add(pneu);
 
         // Detalhamento lateral (ambos os lados)
         [-1, 1].forEach(lado => {
             // Aro Neon embutido
-            const aroNeon = new THREE.Mesh(new THREE.CylinderGeometry(RR * 0.88, RR * 0.88, LR + 0.02, 48), matNeon);
+            const aroNeon = new THREE.Mesh(geoAroNeon, matNeon);
             aroNeon.rotation.z = Math.PI / 2;
             g.add(aroNeon);
 
             // Jante metálica esculpida
-            const jante = new THREE.Mesh(new THREE.CylinderGeometry(RR * 0.85, RR * 0.85, LR + 0.04, 32), matMetalTex);
+            const jante = new THREE.Mesh(geoJante, matMetalTex);
             jante.rotation.z = Math.PI / 2;
             g.add(jante);
 
             // Disco de travão / acionador mecânico
-            const disco = new THREE.Mesh(new THREE.CylinderGeometry(RR * 0.5, RR * 0.5, LR + 0.08, 32), matCascoEscuro);
+            const disco = new THREE.Mesh(geoDisco, matCascoEscuro);
             disco.rotation.z = Math.PI / 2;
             g.add(disco);
 
             // Cubo central / Eixo
-            const cubo = new THREE.Mesh(new THREE.CylinderGeometry(RR * 0.15, RR * 0.15, LR + 0.18, 16), matMetalTex);
+            const cubo = new THREE.Mesh(geoCubo, matMetalTex);
             cubo.rotation.z = Math.PI / 2;
             g.add(cubo);
 
             // Raios esculpidos na roda (BoxGeometry sobrepostas ao disco maciço)
             for (let i = 0; i < 5; i++) {
                 const ang = (i / 5) * Math.PI * 2;
-                const raio = new THREE.Mesh(new THREE.BoxGeometry(0.12, RR * 0.4, 0.06), matCasco);
+                const raio = new THREE.Mesh(geoRaio, matCasco);
                 raio.position.set(lado * (LR / 2 + 0.03), Math.cos(ang) * RR * 0.65, Math.sin(ang) * RR * 0.65);
                 raio.rotation.x = -ang;
                 g.add(raio);
@@ -430,15 +438,10 @@ export function criarMota(corNeon = 0x00ffff) {
     // ═══════════════════════════════════════════════════════════════════════════
     // 9. LUZES PONTUAIS E SOMBRAS
     // ═══════════════════════════════════════════════════════════════════════════
-    // Iluminação do solo
+    // Iluminação do solo — mantida apenas 1 PointLight por veículo (performance)
     const luzNeon = new THREE.PointLight(corNeon, 2.0, 7.0, 2);
     luzNeon.position.set(0, ALTURA_EIXO, 0);
     moto.add(luzNeon);
-
-    // Iluminação do caminho / Farol direcional
-    const luzFarol = new THREE.PointLight(corNeon, 1.5, 5.0, 2);
-    luzFarol.position.set(0, ALTURA_EIXO + 0.5, ZF + 1.0);
-    moto.add(luzFarol);
 
     // Ativar sombras em TODAS as meshes filhas
     moto.traverse((child) => {

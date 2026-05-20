@@ -46,12 +46,31 @@ THREE.Cache.enabled = true;
 var reloginho = new THREE.Clock();
 
 // ---------------------------------------------------------------------------
-// App-level state machine: 'menu' | 'game'
+// App-level state machine: 'menu' | 'loading' | 'game'
 // ---------------------------------------------------------------------------
 var appMode = 'menu';
 var menuApi = null;     // Returned by initMenu(), holds composer + update hooks
 var gameApi = null;     // Built lazily on first game start
 var menuSettings = null;
+
+// Overlay de loading mostrado durante a compilação de shaders
+var loadingOverlay = (function () {
+    var el = document.createElement('div');
+    el.id = 'loading-overlay';
+    el.style.cssText = [
+        'position:fixed', 'inset:0', 'display:none', 'z-index:9999',
+        'background:rgba(0,0,0,0.85)', 'color:#00eaff',
+        'font-family:monospace', 'font-size:1.6rem', 'letter-spacing:.2em',
+        'align-items:center', 'justify-content:center', 'flex-direction:column',
+        'text-shadow:0 0 12px #00eaff'
+    ].join(';');
+    el.innerHTML = '<div>COMPILING SHADERS…</div><div style="font-size:.8rem;margin-top:.5em;opacity:.6">just a moment</div>';
+    document.addEventListener('DOMContentLoaded', function () { document.body.appendChild(el); });
+    return {
+        show: function () { el.style.display = 'flex'; },
+        hide: function () { el.style.display = 'none'; }
+    };
+}());
 
 // ---------------------------------------------------------------------------
 // Menu boot
@@ -73,14 +92,31 @@ function start() {
             var pickedMap = mapas.find(function (m) { return m.id === mapId; }) || mapas[0];
             ensureGameInitialised();
             var gameMode = settings.gameMode || 'ai';
+
+            // Mostrar loading enquanto a GPU compila os shaders
+            loadingOverlay.show();
+            appMode = 'loading';
+
             gameApi.startWithMap(pickedMap, settings.garage || null, gameMode, settings.garage2 || null);
             playMapMusic(pickedMap.id);
-            appMode = 'game';
+
             var info = document.getElementById('info');
             info.style.display = 'block';
             info.innerHTML = (gameMode === 'local1v1' || gameMode === 'split1v1')
                 ? 'P1 SETAS (&uarr; NITRO) &nbsp; P2 WASD (W NITRO) &nbsp; [ESC] Menu'
                 : '[&uarr;] Nitro &nbsp; [V] 3&ordf; Pessoa &nbsp; [B] Topo &nbsp; [C] Alternar &nbsp; [ESC] Menu';
+
+            // compileAsync compila shaders e faz upload de texturas para a GPU
+            // antes do primeiro frame — elimina o freeze inicial.
+            var camCompile = gameApi._camaraPerspetiva || renderer;
+            var compilePromise = (renderer.compileAsync)
+                ? renderer.compileAsync(gameApi._cena, camCompile)
+                : Promise.resolve();
+
+            compilePromise.then(function () {
+                loadingOverlay.hide();
+                appMode = 'game';
+            });
         },
         onSettingsChange: function (s) {
             menuSettings = s;
@@ -481,7 +517,10 @@ function buildGame() {
         render: render,
         onResize: onResize,
         applySettings: applySettings,
-        teardown: teardown
+        teardown: teardown,
+        // Expostos para compileAsync no onStartGame
+        _cena: cena,
+        _camaraPerspetiva: camaraPerspetiva
     };
 }
 

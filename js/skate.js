@@ -97,7 +97,7 @@ export function criarSkate(corNeon = 0x00ffff) {
     const texMetal = loader.load('./textures/mota/metal_texture.png');
     texMetal.wrapS = texMetal.wrapT = THREE.RepeatWrapping;
     texMetal.repeat.set(2, 2);
-    texMetal.anisotropy = 16;
+    texMetal.anisotropy = 4; // Limitado: 16x é pesado em GPUs integradas
 
     // ─── Materiais ──────────────────────────────────────────────────────────────
     const matPrancha = new THREE.MeshStandardMaterial({
@@ -460,24 +460,14 @@ export function criarSkate(corNeon = 0x00ffff) {
     // ═══════════════════════════════════════════════════════════════════════════
     // 9. ILUMINAÇÃO AVANÇADA — multi-point underglow
     // ═══════════════════════════════════════════════════════════════════════════
-    // Luz principal underglow
+    // Luz principal underglow — apenas 2 PointLights por veículo (performance)
     const luzHover = new THREE.PointLight(corNeon, 3.5, 8.0, 2);
     luzHover.position.set(0, 0.1, 0);
     hover.add(luzHover);
-    // Luzes dos propulsores (4 pontos)
-    [[-POS_X, POS_Z], [POS_X, POS_Z], [-POS_X, -POS_Z], [POS_X, -POS_Z]].forEach(([x, z]) => {
-        const lp = new THREE.PointLight(corNeon, 1.0, 3.0, 2);
-        lp.position.set(x, 0.05, z);
-        hover.add(lp);
-    });
     // Farol direcional frontal
     const luzFrente = new THREE.PointLight(corNeon, 2.0, 6.0, 2);
     luzFrente.position.set(0, ALT_HOVER + 0.2, COMP / 2 + 0.5);
     hover.add(luzFrente);
-    // Luz traseira (exaustão)
-    const luzTras = new THREE.PointLight(corNeon, 1.5, 4.0, 2);
-    luzTras.position.set(0, ALT_HOVER, -COMP / 2 - 0.5);
-    hover.add(luzTras);
 
     // ═══════════════════════════════════════════════════════════════════════════
     // 10. SOMBRAS

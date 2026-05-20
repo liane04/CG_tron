@@ -11,7 +11,7 @@ import { criarArena } from './arena.js';
 import { criarMota, atualizarMota } from './mota.js';
 import { criarSkate, atualizarSkate, destruirSkate } from './skate.js';
 import { criarSpeeder, atualizarSpeeder } from './speeder.js';
-import { inicializarInput, atualizarMotas, definirObstaculos, definirIAJ1Ativa, definirIAJ2Ativa } from './input.js';
+import { inicializarInput, atualizarMotas, definirObstaculos, definirIAJ1Ativa, definirIAJ2Ativa, definirLayoutControlos } from './input.js';
 import { criarLuzes } from './luzes.js';
 import { mapas } from './mapas.js';
 import { criarTrail, destruirTrail, atualizarTrail } from './trail.js';
@@ -426,6 +426,11 @@ function buildGame() {
         // No modo "ai" o skate é controlado pela IA; no "local1v1" ambos os
         // jogadores são humanos (setas vs WASD) e a IA fica desligada.
         var iaJ2Ativa = (modoJogoAtual !== 'local1v1' && modoJogoAtual !== 'split1v1');
+        // Layout de controlo do humano: só aplicável em single-player (vs IA),
+        // onde há um único humano. No 1v1 local o J1 fica nas setas e o J2 em WASD.
+        var layoutHumano = (iaJ2Ativa && menuSettings && menuSettings.controls)
+            ? menuSettings.controls.layout : 'arrows';
+        definirLayoutControlos(layoutHumano);
         definirIAJ1Ativa(false);
         definirIAJ2Ativa(iaJ2Ativa);
         if (iaJ2Ativa) {

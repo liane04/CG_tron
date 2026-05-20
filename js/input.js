@@ -11,9 +11,18 @@ var teclasIA_J1 = { esq: false, dir: false };
 var teclasIA_J2 = { esq: false, dir: false };
 
 // --- Referências aos veículos e respetivos estados físicos ---
-// Jogador 1 → mota (controlo: setas + Shift  ou  IA)
+// Jogador 1 → mota (controlo: setas + Shift  ou  WASD + Espaço  ou  IA)
 // Jogador 2 → skate (controlo: WASD + Espaço  ou  IA)
 var motaJ1 = null;
+
+// --- Esquema de teclas do jogador humano J1 ---
+// Escolhido nas Settings ('arrows' | 'wasd'). Aplica-se ao único humano em
+// single-player (vs IA). No 1v1 local o J1 fica nas setas e o J2 em WASD.
+var MAPAS_CONTROLO = {
+    arrows: { esq: 'ArrowLeft', dir: 'ArrowRight', boost: 'ArrowUp' },
+    wasd: { esq: 'KeyA', dir: 'KeyD', boost: 'KeyW' }
+};
+var layoutJ1 = 'arrows';
 var skateJ2 = null;
 var estadoJ1 = null;
 var estadoJ2 = null;
@@ -339,12 +348,18 @@ export function atualizarMotas(delta) {
     if (!motaJ1 || !skateJ2) return;
 
     if (!pausadoJ1) {
-        var fonteJ1 = iaAtivaJ1
-            ? { ArrowLeft: teclasIA_J1.esq, ArrowRight: teclasIA_J1.dir }
-            : teclas;
+        var mapJ1 = MAPAS_CONTROLO[layoutJ1] || MAPAS_CONTROLO.arrows;
+        var fonteJ1;
+        if (iaAtivaJ1) {
+            fonteJ1 = {};
+            fonteJ1[mapJ1.esq] = teclasIA_J1.esq;
+            fonteJ1[mapJ1.dir] = teclasIA_J1.dir;
+        } else {
+            fonteJ1 = teclas;
+        }
         // Boost só está disponível para humanos; a IA nunca activa nitro.
-        var boostJ1 = iaAtivaJ1 ? null : 'ArrowUp';
-        atualizarJogador(motaJ1, estadoJ1, fonteJ1, 'ArrowLeft', 'ArrowRight', boostJ1,
+        var boostJ1 = iaAtivaJ1 ? null : mapJ1.boost;
+        atualizarJogador(motaJ1, estadoJ1, fonteJ1, mapJ1.esq, mapJ1.dir, boostJ1,
             estadoJ1.hw, estadoJ1.hl, delta, aoColidirParedeJ1);
     }
     if (!pausadoJ2) {
@@ -360,6 +375,10 @@ export function atualizarMotas(delta) {
 // ---------------------------------------------------------------
 // API extra usada pela lógica de jogo / IA
 // ---------------------------------------------------------------
+
+export function definirLayoutControlos(layout) {
+    layoutJ1 = (layout === 'wasd') ? 'wasd' : 'arrows';
+}
 
 export function definirIAJ1Ativa(ativa) {
     iaAtivaJ1 = !!ativa;

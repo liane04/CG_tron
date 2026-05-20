@@ -52,6 +52,10 @@ var appMode = 'menu';
 var menuApi = null;     // Returned by initMenu(), holds composer + update hooks
 var gameApi = null;     // Built lazily on first game start
 var menuSettings = null;
+var ultimoMapa = null;
+var ultimaGarage = null;
+var ultimoGameMode = null;
+var ultimaGarage2 = null;
 
 // Overlay de loading mostrado durante a compilação de shaders
 var loadingOverlay = (function () {
@@ -90,8 +94,15 @@ function start() {
             // Pick the user's chosen map (falls back to first map if missing)
             var mapId = settings.track && settings.track.mapId ? settings.track.mapId : mapas[0].id;
             var pickedMap = mapas.find(function (m) { return m.id === mapId; }) || mapas[0];
+            
+            // Guardar as definições para reinício de jogo nas estatísticas
+            ultimoMapa = pickedMap;
+            ultimaGarage = settings.garage || null;
+            ultimoGameMode = settings.gameMode || 'ai';
+            ultimaGarage2 = settings.garage2 || null;
+
             ensureGameInitialised();
-            var gameMode = settings.gameMode || 'ai';
+            var gameMode = ultimoGameMode;
 
             // Mostrar loading enquanto a GPU compila os shaders
             loadingOverlay.show();
@@ -102,9 +113,26 @@ function start() {
 
             var info = document.getElementById('info');
             info.style.display = 'block';
-            info.innerHTML = (gameMode === 'local1v1' || gameMode === 'split1v1')
-                ? 'P1 SETAS (&uarr; NITRO) &nbsp; P2 WASD (W NITRO) &nbsp; [ESC] Menu'
-                : '[&uarr;] Nitro &nbsp; [V] 3&ordf; Pessoa &nbsp; [B] Topo &nbsp; [C] Alternar &nbsp; [ESC] Menu';
+            info.style.position = 'fixed';
+            info.style.top = '15px';
+            info.style.right = '20px';
+            info.style.left = 'auto';
+            info.style.bottom = 'auto';
+            info.style.transform = 'none';
+            info.style.textAlign = 'right';
+            info.style.width = '240px';
+            info.style.fontSize = '9px';
+            info.style.lineHeight = '1.6';
+            info.style.letterSpacing = '1px';
+            info.style.color = '#00ffff';
+            info.style.textShadow = '0 0 6px #00ffff';
+            info.style.fontFamily = 'Orbitron, "Courier New", monospace';
+            
+            if (gameMode === 'local1v1' || gameMode === 'split1v1') {
+                info.innerHTML = '[ESC] MENU<br>P1: SETAS (&uarr; NITRO)<br>P2: WASD (W NITRO)';
+            } else {
+                info.innerHTML = '[ESC] MENU<br>[&uarr;] NITRO | [V] 3&ordf; PERS.<br>[B] TOPO | [C] ALTERNAR';
+            }
 
             // compileAsync compila shaders e faz upload de texturas para a GPU
             // antes do primeiro frame — elimina o freeze inicial.
@@ -147,6 +175,42 @@ function backToMenu() {
     playMenuMusic();
 }
 
+function reiniciarPartida() {
+    if (!ultimoMapa) return;
+
+    // 1. Mostrar loading enquanto GPU compila
+    loadingOverlay.show();
+    appMode = 'loading';
+
+    // 2. Destruir o jogo anterior
+    if (gameApi) gameApi.teardown();
+
+    // 3. Iniciar um novo com os mesmos dados guardados
+    ensureGameInitialised();
+    gameApi.startWithMap(ultimoMapa, ultimaGarage, ultimoGameMode, ultimaGarage2);
+    playMapMusic(ultimoMapa.id);
+
+    // 4. Reposicionar o info HUD
+    var info = document.getElementById('info');
+    info.style.display = 'block';
+    if (ultimoGameMode === 'local1v1' || ultimoGameMode === 'split1v1') {
+        info.innerHTML = '[ESC] MENU<br>P1: SETAS (&uarr; NITRO)<br>P2: WASD (W NITRO)';
+    } else {
+        info.innerHTML = '[ESC] MENU<br>[&uarr;] NITRO | [V] 3&ordf; PERS.<br>[B] TOPO | [C] ALTERNAR';
+    }
+
+    // 5. Compilar shaders assincronamente e esconder loading
+    var camCompile = gameApi._camaraPerspetiva || renderer;
+    var compilePromise = (renderer.compileAsync)
+        ? renderer.compileAsync(gameApi._cena, camCompile)
+        : Promise.resolve();
+
+    compilePromise.then(function () {
+        loadingOverlay.hide();
+        appMode = 'game';
+    });
+}
+
 // ---------------------------------------------------------------------------
 // Game (existing scene wrapped in a struct so we can build/teardown cleanly)
 // ---------------------------------------------------------------------------
@@ -163,10 +227,12 @@ function buildGame() {
     var camaraPerspetiva = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 800);
     camaraPerspetiva.position.set(0, 45, 70);
     camaraPerspetiva.lookAt(0, 0, 0);
+    camaraPerspetiva.layers.enable(1); // Renderiza a camada 1 (estrelas)
 
     var camaraPerspetivaP2 = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 800);
     camaraPerspetivaP2.position.set(0, 45, 70);
     camaraPerspetivaP2.lookAt(0, 0, 0);
+    camaraPerspetivaP2.layers.enable(1); // Renderiza a camada 1 (estrelas)
 
     var aspecto = window.innerWidth / window.innerHeight;
     // Vista ortográfica encosta verticalmente à arena (ARENA/2 de meia-extensão)
@@ -179,6 +245,21 @@ function buildGame() {
     );
     camaraOrtografica.position.set(0, 120, 0);
     camaraOrtografica.lookAt(0, 0, 0);
+    camaraOrtografica.layers.enable(1); // Renderiza a camada 1 (estrelas)
+
+    // Câmara do mini-mapa: vista ortográfica quadrada que cobre a arena de cima
+    var tamanhoMiniMapa = ARENA * 0.55;
+    var camaraMiniMapa = new THREE.OrthographicCamera(
+        -tamanhoMiniMapa, tamanhoMiniMapa,
+        tamanhoMiniMapa, -tamanhoMiniMapa,
+        0.1, 800
+    );
+    camaraMiniMapa.position.set(0, 150, 0);
+    camaraMiniMapa.lookAt(0, 0, 0);
+    // Nota: camaraMiniMapa NÃO tem a camada 1 activa, logo não renderizará as estrelas!
+
+    var miniOverlay1 = null;
+    var miniOverlay2 = null;
 
     var camaraAtiva = camaraPerspetiva;
     var modoCamara = 'livre';
@@ -303,6 +384,45 @@ function buildGame() {
         cena.add(trailMota.mesh);
         cena.add(trailSkate.mesh);
 
+        // Inicializar overlays de mini-mapa (HUD) se não existirem (colocados a top:80px)
+        if (!miniOverlay1) {
+            miniOverlay1 = document.createElement('div');
+            miniOverlay1.id = 'minimap-overlay-p1';
+            miniOverlay1.style.cssText = 'position:fixed; top:80px; width:150px; height:150px; border:2px solid #00eaff; box-shadow: 0 0 10px rgba(0,234,255,0.4); background: rgba(0,0,0,0.45); z-index:1200; pointer-events:none; box-sizing:border-box; border-radius:4px; display:none;';
+            
+            var label = document.createElement('div');
+            label.style.cssText = 'position:absolute; top:-16px; left:2px; color:#00eaff; font-family:monospace; font-size:9px; font-weight:bold; letter-spacing:0.15em; text-shadow:0 0 5px #00eaff;';
+            label.innerText = 'GPS RADAR';
+            miniOverlay1.appendChild(label);
+            
+            document.body.appendChild(miniOverlay1);
+        }
+        if (!miniOverlay2) {
+            miniOverlay2 = document.createElement('div');
+            miniOverlay2.id = 'minimap-overlay-p2';
+            miniOverlay2.style.cssText = 'position:fixed; top:80px; width:150px; height:150px; border:2px solid #ff2bd6; box-shadow: 0 0 10px rgba(255,43,214,0.4); background: rgba(0,0,0,0.45); z-index:1200; pointer-events:none; box-sizing:border-box; border-radius:4px; display:none;';
+            
+            var label2 = document.createElement('div');
+            label2.style.cssText = 'position:absolute; top:-16px; left:2px; color:#ff2bd6; font-family:monospace; font-size:9px; font-weight:bold; letter-spacing:0.15em; text-shadow:0 0 5px #ff2bd6;';
+            label2.innerText = 'GPS RADAR P2';
+            miniOverlay2.appendChild(label2);
+            
+            document.body.appendChild(miniOverlay2);
+        }
+
+        // Aplicar cores dinâmicas aos overlays do mini-mapa
+        var p1ColorCSS = '#' + corP1.toString(16).padStart(6, '0');
+        var p2ColorCSS = '#' + (corP2 !== undefined ? corP2.toString(16).padStart(6, '0') : 'ff0066');
+        miniOverlay1.style.borderColor = p1ColorCSS;
+        miniOverlay1.style.boxShadow = '0 0 10px ' + p1ColorCSS;
+        miniOverlay1.firstChild.style.color = p1ColorCSS;
+        miniOverlay1.firstChild.style.textShadow = '0 0 5px ' + p1ColorCSS;
+
+        miniOverlay2.style.borderColor = p2ColorCSS;
+        miniOverlay2.style.boxShadow = '0 0 10px ' + p2ColorCSS;
+        miniOverlay2.firstChild.style.color = p2ColorCSS;
+        miniOverlay2.firstChild.style.textShadow = '0 0 5px ' + p2ColorCSS;
+
         // No modo "ai" o skate é controlado pela IA; no "local1v1" ambos os
         // jogadores são humanos (setas vs WASD) e a IA fica desligada.
         var iaJ2Ativa = (modoJogoAtual !== 'local1v1' && modoJogoAtual !== 'split1v1');
@@ -327,7 +447,8 @@ function buildGame() {
             cores: { 1: corP1, 2: corP2 },
             gameMode: modoJogoAtual,
             vidasIniciais: (menuSettings && menuSettings.vidasIniciais) || 3,
-            onMatchEnd: function () { backToMenu(); }
+            onMatchEnd: function () { backToMenu(); },
+            onRestart: reiniciarPartida
         });
         iniciarRonda();
 
@@ -380,6 +501,36 @@ function buildGame() {
             camaraOrtografica.position.set(0, 80, 0);
             camaraOrtografica.lookAt(0, 0, 0);
             controlos.enabled = false;
+        }
+        atualizarPosicoesMinimapas();
+    }
+
+    function atualizarPosicoesMinimapas() {
+        var showMinimap = (modoCamara !== 'topo');
+        
+        if (appMode !== 'game' || !showMinimap) {
+            if (miniOverlay1) miniOverlay1.style.display = 'none';
+            if (miniOverlay2) miniOverlay2.style.display = 'none';
+            return;
+        }
+
+        if (modoJogoAtual === 'split1v1') {
+            if (miniOverlay1) {
+                miniOverlay1.style.display = 'block';
+                miniOverlay1.style.right = '20px'; // P1 (Setas) no ecrã direito
+            }
+            if (miniOverlay2) {
+                miniOverlay2.style.display = 'block';
+                miniOverlay2.style.right = 'calc(50% + 20px)'; // P2 (WASD) no ecrã esquerdo
+            }
+        } else {
+            if (miniOverlay1) {
+                miniOverlay1.style.display = 'block';
+                miniOverlay1.style.right = '20px';
+            }
+            if (miniOverlay2) {
+                miniOverlay2.style.display = 'none';
+            }
         }
     }
 
@@ -457,26 +608,49 @@ function buildGame() {
     }
 
     function render() {
-        if (modoJogoAtual === 'split1v1') {
-            var w = window.innerWidth;
-            var h = window.innerHeight;
+        var w = window.innerWidth;
+        var h = window.innerHeight;
+        var showMinimap = (modoCamara !== 'topo');
 
+        if (modoJogoAtual === 'split1v1') {
             renderer.setScissorTest(true);
 
-            // Player 1 (Left half)
+            // Player 2 (Left half - WASD)
             renderer.setScissor(0, 0, w / 2, h);
             renderer.setViewport(0, 0, w / 2, h);
-            renderer.render(cena, camaraPerspetiva);
+            renderer.render(cena, camaraPerspetivaP2);
 
-            // Player 2 (Right half)
+            // Player 1 (Right half - Setas)
             renderer.setScissor(w / 2, 0, w / 2, h);
             renderer.setViewport(w / 2, 0, w / 2, h);
-            renderer.render(cena, camaraPerspetivaP2);
+            renderer.render(cena, camaraPerspetiva);
+
+            // Desenhar os mini-mapas de cima nas duas metades (top:80px)
+            if (showMinimap) {
+                // Minimapa P1
+                renderer.setScissor(w / 2 - 20 - 150, h - 80 - 150, 150, 150);
+                renderer.setViewport(w / 2 - 20 - 150, h - 80 - 150, 150, 150);
+                renderer.render(cena, camaraMiniMapa);
+
+                // Minimapa P2
+                renderer.setScissor(w - 20 - 150, h - 80 - 150, 150, 150);
+                renderer.setViewport(w - 20 - 150, h - 80 - 150, 150, 150);
+                renderer.render(cena, camaraMiniMapa);
+            }
 
             renderer.setScissorTest(false);
             renderer.setViewport(0, 0, w, h);
         } else {
             renderer.render(cena, camaraAtiva);
+
+            if (showMinimap) {
+                renderer.setScissorTest(true);
+                renderer.setScissor(w - 20 - 150, h - 80 - 150, 150, 150);
+                renderer.setViewport(w - 20 - 150, h - 80 - 150, 150, 150);
+                renderer.render(cena, camaraMiniMapa);
+                renderer.setScissorTest(false);
+                renderer.setViewport(0, 0, w, h);
+            }
         }
     }
 
@@ -493,6 +667,8 @@ function buildGame() {
         camaraOrtografica.top = tamanhoOrto;
         camaraOrtografica.bottom = -tamanhoOrto;
         camaraOrtografica.updateProjectionMatrix();
+
+        atualizarPosicoesMinimapas();
     }
 
     function applySettings(s) {
@@ -508,6 +684,10 @@ function buildGame() {
         if (trailSkate) { destruirTrail(trailSkate, cena); trailSkate = null; }
         var divider = document.getElementById('split-divider');
         if (divider) divider.style.display = 'none';
+        
+        if (miniOverlay1) miniOverlay1.style.display = 'none';
+        if (miniOverlay2) miniOverlay2.style.display = 'none';
+        
         destruirHudBoost();
     }
 

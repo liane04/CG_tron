@@ -431,3 +431,7 @@ export function obterBoost(idx) {
     if (!st) return { carga: 0, max: BOOST_TEMPO_MAX, ativo: false };
     return { carga: st.boostCarga, max: BOOST_TEMPO_MAX, ativo: st.boostAtivo };
 }
+export function obterEstadoPulo(idx) {
+    var st = (idx === 1) ? estadoJ1 : (idx === 2 ? estadoJ2 : null);
+    return st ? st.saltando : false;
+}

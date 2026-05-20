@@ -70,31 +70,48 @@ export function criarHudBoost(opts) {
     var corP1 = cores[1] !== undefined ? cores[1] : 0x00eaff;
     var corP2 = cores[2] !== undefined ? cores[2] : 0xff2bd6;
 
-    container = document.createElement('div');
-    container.id = 'hud-nitro';
-    container.style.cssText = [
-        'position:fixed',
-        'right:18px',
-        'bottom:18px',
-        'display:flex',
-        'flex-direction:column',
-        'align-items:flex-end',
-        'gap:10px',
-        'pointer-events:none',
-        'z-index:50'
-    ].join(';');
-
     barras = [];
-    var ehDuelo = (gameMode === 'local1v1' || gameMode === 'split1v1');
-    if (ehDuelo) {
-        barras.push(criarBarra(1, corP1, 'P1 [↑]'));
-        barras.push(criarBarra(2, corP2, 'P2 [W]'));
-    } else {
-        barras.push(criarBarra(1, corP1, 'P1 [↑]'));
-    }
-    for (var i = 0; i < barras.length; i++) container.appendChild(barras[i].wrap);
 
-    document.body.appendChild(container);
+    if (gameMode === 'split1v1') {
+        // Recipiente P1 (Setas) no canto inferior direito da metade direita
+        var containerP1 = document.createElement('div');
+        containerP1.id = 'hud-nitro-p1';
+        containerP1.style.cssText = 'position:fixed; right:18px; bottom:18px; display:flex; flex-direction:column; align-items:flex-end; gap:10px; pointer-events:none; z-index:50;';
+        var b1 = criarBarra(1, corP1, 'P1 [↑]');
+        containerP1.appendChild(b1.wrap);
+        document.body.appendChild(containerP1);
+        barras.push(b1);
+
+        // Recipiente P2 (WASD) no canto inferior direito da metade esquerda
+        var containerP2 = document.createElement('div');
+        containerP2.id = 'hud-nitro-p2';
+        containerP2.style.cssText = 'position:fixed; right:calc(50% + 18px); bottom:18px; display:flex; flex-direction:column; align-items:flex-end; gap:10px; pointer-events:none; z-index:50;';
+        var b2 = criarBarra(2, corP2, 'P2 [W]');
+        containerP2.appendChild(b2.wrap);
+        document.body.appendChild(containerP2);
+        barras.push(b2);
+
+        container = [containerP1, containerP2];
+    } else {
+        container = document.createElement('div');
+        container.id = 'hud-nitro';
+        container.style.cssText = 'position:fixed; right:18px; bottom:18px; display:flex; flex-direction:column; align-items:flex-end; gap:10px; pointer-events:none; z-index:50;';
+
+        var ehDuelo = (gameMode === 'local1v1');
+        if (ehDuelo) {
+            var b1 = criarBarra(1, corP1, 'P1 [↑]');
+            var b2 = criarBarra(2, corP2, 'P2 [W]');
+            container.appendChild(b1.wrap);
+            container.appendChild(b2.wrap);
+            barras.push(b1);
+            barras.push(b2);
+        } else {
+            var b1 = criarBarra(1, corP1, 'P1 [↑]');
+            container.appendChild(b1.wrap);
+            barras.push(b1);
+        }
+        document.body.appendChild(container);
+    }
 }
 
 export function atualizarHudBoost() {
@@ -122,11 +139,22 @@ export function atualizarHudBoost() {
 
 export function mostrarHudBoost(visivel) {
     if (!container) return;
-    container.style.display = visivel ? 'flex' : 'none';
+    if (Array.isArray(container)) {
+        container[0].style.display = visivel ? 'flex' : 'none';
+        container[1].style.display = visivel ? 'flex' : 'none';
+    } else {
+        container.style.display = visivel ? 'flex' : 'none';
+    }
 }
 
 export function destruirHudBoost() {
-    if (container && container.parentNode) container.parentNode.removeChild(container);
+    if (!container) return;
+    if (Array.isArray(container)) {
+        if (container[0] && container[0].parentNode) container[0].parentNode.removeChild(container[0]);
+        if (container[1] && container[1].parentNode) container[1].parentNode.removeChild(container[1]);
+    } else {
+        if (container.parentNode) container.parentNode.removeChild(container);
+    }
     container = null;
     barras = [];
 }

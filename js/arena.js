@@ -142,5 +142,6 @@ function construirEstrelas(grupo) {
     geoStars.setAttribute('position', new THREE.BufferAttribute(posStars, 3));
     var matStars = new THREE.PointsMaterial({ color: 0xffffff, size: 0.5, sizeAttenuation: true });
     var stars = new THREE.Points(geoStars, matStars);
+    stars.layers.set(1); // Coloca as estrelas na camada 1 para serem ignoradas pelo mini-mapa
     grupo.add(stars);
 }

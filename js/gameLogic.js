@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import {
     pausarJogador, pausarTodos, reposicionarJogador,
-    definirCallbackColisao, obterLimiteArena
+    definirCallbackColisao, obterLimiteArena, obterBoost, obterEstadoPulo
 } from './input.js';
 import { adicionarPonto, obterSegmentos, resetarTrail } from './trail.js';
 import { blocosOrbitais } from './objetos/arenaSpace.js';
@@ -55,7 +55,22 @@ const estado = {
     partidaTerminada: false,
     vencedorPartida: 0,
     onMatchEnd: null,                // callback ao fim da partida
-    hudVidas: null                   // div HTML do HUD de corações
+    onRestart: null,                 // callback para jogar novamente
+    hudVidas: null,                  // div HTML do HUD de corações
+    overlayEstatistias: null,        // div HTML da tela de estatísticas
+
+    // --- Estatísticas da Partida ---
+    estatisticas: {
+        tempoTotal: 0,
+        boostUso: { 1: 0, 2: 0 },
+        saltos: { 1: 0, 2: 0 },
+        colisoesParede: { 1: 0, 2: 0 },
+        colisoesTrail: { 1: 0, 2: 0 },
+        colisoesLaser: { 1: 0, 2: 0 },
+        rondasGanhas: { 1: 0, 2: 0 }
+    },
+    _lastSaltando1: false,
+    _lastSaltando2: false
 };
 
 // Pool de explosões pré-alocadas para evitar recompilação de shaders e stresse no GC
@@ -81,6 +96,20 @@ export function configurarGameLogic(opts) {
     estado.partidaTerminada = false;
     estado.vencedorPartida = 0;
     estado.onMatchEnd = opts.onMatchEnd || null;
+    estado.onRestart = opts.onRestart || null;
+
+    // Resetar estatísticas de jogo
+    estado.estatisticas = {
+        tempoTotal: 0,
+        boostUso: { 1: 0, 2: 0 },
+        saltos: { 1: 0, 2: 0 },
+        colisoesParede: { 1: 0, 2: 0 },
+        colisoesTrail: { 1: 0, 2: 0 },
+        colisoesLaser: { 1: 0, 2: 0 },
+        rondasGanhas: { 1: 0, 2: 0 }
+    };
+    estado._lastSaltando1 = false;
+    estado._lastSaltando2 = false;
 
     // Recorde de sobrevivência single-player
     var rec = parseFloat(localStorage.getItem('neonDrive_record'));
@@ -90,10 +119,9 @@ export function configurarGameLogic(opts) {
     atualizarHUD();
     mostrarHUD();
 
-    // Wall hits = morte. 2.º slot (cbTrail) é reservado: a colisão com trails
-    // é detectada aqui (verificarColisaoTrails), não em input.js.
-    definirCallbackColisao(1, function () { accionarMorte(1); }, null);
-    definirCallbackColisao(2, function () { accionarMorte(2); }, null);
+    // Wall hits = morte.
+    definirCallbackColisao(1, function () { accionarMorte(1, 'parede'); }, null);
+    definirCallbackColisao(2, function () { accionarMorte(2, 'parede'); }, null);
 
     if (!estado.listenerEnter) {
         estado.listenerEnter = function (e) {
@@ -156,7 +184,7 @@ export function iniciarRonda() {
     mostrarContagem(3);
 }
 
-export function accionarMorte(jogadorId) {
+export function accionarMorte(jogadorId, causa) {
     if (estado.emContagem) return;
     if (estado.rondaTerminada) return;
     if (!estado.activos[jogadorId]) return;
@@ -166,6 +194,15 @@ export function accionarMorte(jogadorId) {
 
     // Registar tempo de sobrevivência deste jogador
     estado.tempoSobrevivencia[jogadorId] = estado.tempoRonda;
+
+    // Registar causa de colisão nas estatísticas
+    if (causa === 'parede') {
+        estado.estatisticas.colisoesParede[jogadorId] += 1;
+    } else if (causa === 'trail') {
+        estado.estatisticas.colisoesTrail[jogadorId] += 1;
+    } else if (causa === 'laser') {
+        estado.estatisticas.colisoesLaser[jogadorId] += 1;
+    }
 
     // Perder uma vida
     estado.vidas[jogadorId] = Math.max(0, estado.vidas[jogadorId] - 1);
@@ -183,6 +220,7 @@ export function accionarMorte(jogadorId) {
     // O outro jogador venceu a ronda
     estado.rondaTerminada = true;
     estado.venceuId = jogadorId === 1 ? 2 : 1;
+    estado.estatisticas.rondasGanhas[estado.venceuId] += 1;
 
     // Single-player: J1 é o humano; se ele sobreviveu (i.e. morreu o J2 IA), regista recorde
     if (estado.gameMode === 'ai' && estado.venceuId === 1 && estado.tempoRonda > estado.recordeSobrevivencia) {
@@ -195,7 +233,7 @@ export function accionarMorte(jogadorId) {
         estado.partidaTerminada = true;
         estado.vencedorPartida = estado.venceuId;
         estado.timerResultado = 2.0;
-        estado.timerNovaRonda  = 8.0; // 2s morte + 6s leitura do GAME OVER
+        estado.timerNovaRonda  = 5.5; // 2s morte + 3.5s leitura do GAME OVER
     } else {
         estado.timerResultado = 2.0;
         estado.timerNovaRonda  = 5.0; // 2s morte + 3s leitura
@@ -212,6 +250,10 @@ export function atualizarGameLogic(delta) {
     if (estado.emContagem) {
         estado.timerContagem -= delta;
         if (estado.timerContagem <= 0) {
+            // Resetar estados de pulo anteriores no início da ação
+            estado._lastSaltando1 = false;
+            estado._lastSaltando2 = false;
+
             estado.valorContagem -= 1;
             if (estado.valorContagem < 0) {
                 // Já passou o GO! — liberta os jogadores e termina o countdown
@@ -230,37 +272,66 @@ export function atualizarGameLogic(delta) {
     // Cronómetro da ronda (só conta enquanto a ronda decorre)
     if (!estado.rondaTerminada) {
         estado.tempoRonda += delta;
+        estado.estatisticas.tempoTotal += delta;
+
+        // Monitorizar uso de boost
+        if (estado.activos[1]) {
+            var b1 = obterBoost(1);
+            if (b1 && b1.ativo) {
+                estado.estatisticas.boostUso[1] += delta;
+            }
+        }
+        if (estado.activos[2]) {
+            var b2 = obterBoost(2);
+            if (b2 && b2.ativo) {
+                estado.estatisticas.boostUso[2] += delta;
+            }
+        }
     }
 
-    // Adicionar pontos de trail enquanto vivos
+    // Adicionar pontos de trail enquanto vivos e monitorizar saltos
     if (estado.activos[1] && estado.motaRef) {
         // Se for o trail clássico (ribbon), sai do centro (Z=0). Caso contrário, sai da traseira.
         const offZ = (estado.trailMota && estado.trailMota.id === 'ribbon') ? 0 : 1.8;
         _tmpOffset.set(0, 0, offZ).applyQuaternion(estado.motaRef.quaternion);
         _tmpPosTrail.copy(estado.motaRef.position).add(_tmpOffset);
         adicionarPonto(estado.trailMota, _tmpPosTrail);
+
+        // Contabilizar saltos
+        var saltando1 = obterEstadoPulo(1);
+        if (saltando1 && !estado._lastSaltando1) {
+            estado.estatisticas.saltos[1] += 1;
+        }
+        estado._lastSaltando1 = saltando1;
     }
     if (estado.activos[2] && estado.skateRef) {
         const offZ = (estado.trailSkate && estado.trailSkate.id === 'ribbon') ? 0 : 1.2;
         _tmpOffset.set(0, 0, offZ).applyQuaternion(estado.skateRef.quaternion);
         _tmpPosTrail.copy(estado.skateRef.position).add(_tmpOffset);
         adicionarPonto(estado.trailSkate, _tmpPosTrail);
+
+        // Contabilizar saltos
+        var saltando2 = obterEstadoPulo(2);
+        if (saltando2 && !estado._lastSaltando2) {
+            estado.estatisticas.saltos[2] += 1;
+        }
+        estado._lastSaltando2 = saltando2;
     }
 
     // Detectar colisões trail
     if (estado.activos[1] && verificarColisaoTrails(estado.motaRef.position, 1)) {
-        accionarMorte(1);
+        accionarMorte(1, 'trail');
     }
     if (estado.activos[2] && verificarColisaoTrails(estado.skateRef.position, 2)) {
-        accionarMorte(2);
+        accionarMorte(2, 'trail');
     }
 
     // Detectar colisão dinâmica com o Laser do Drone (Arena Space)
     if (estado.activos[1] && verificarColisaoDrone(estado.motaRef.position)) {
-        accionarMorte(1);
+        accionarMorte(1, 'laser');
     }
     if (estado.activos[2] && verificarColisaoDrone(estado.skateRef.position)) {
-        accionarMorte(2);
+        accionarMorte(2, 'laser');
     }
 
     // Actualizar explosões
@@ -286,9 +357,8 @@ export function atualizarGameLogic(delta) {
         estado.timerNovaRonda -= delta;
         if (estado.timerNovaRonda <= 0) {
             if (estado.partidaTerminada) {
-                var cb = estado.onMatchEnd;
-                limparGameLogic();
-                if (cb) cb();
+                mostrarEstatistias();
+                estado.aguardarEnter = false;
             } else {
                 iniciarRonda();
             }
@@ -905,7 +975,7 @@ function mostrarResultado(venceuId) {
         coracoes.style.display = 'block';
 
         sobrev.style.display = 'none';
-        sub.textContent = 'RETURNING TO MENU IN 6s';
+        sub.textContent = 'MOSTRANDO ESTATÍSTICAS...';
         sub.style.display = 'block';
     } else {
         // ─── Fim de ronda normal ───────────────────────────────────
@@ -953,6 +1023,189 @@ function esconderResultado() {
     if (estado.overlay) estado.overlay.style.display = 'none';
 }
 
+function obterOverlayEstatistias() {
+    if (estado.overlayEstatistias) return estado.overlayEstatistias;
+    
+    var div = document.createElement('div');
+    div.id = 'match-stats-screen';
+    div.style.cssText = [
+        'position:fixed', 'top:0', 'left:0', 'width:100%', 'height:100%',
+        'background:rgba(2, 0, 10, 0.85)',
+        'backdrop-filter:blur(10px)',
+        '-webkit-backdrop-filter:blur(10px)',
+        'display:none', 'flex-direction:column',
+        'align-items:center', 'justify-content:center',
+        'z-index:2000',
+        'font-family:Orbitron, "Courier New", monospace',
+        'color:#ffffff', 'padding:20px', 'box-sizing:border-box'
+    ].join(';');
+
+    var panel = document.createElement('div');
+    panel.style.cssText = [
+        'width:100%', 'max-width:560px',
+        'background:rgba(10, 5, 25, 0.65)',
+        'border:2px solid #00eaff',
+        'border-radius:12px',
+        'padding:30px', 'box-sizing:border-box',
+        'box-shadow:0 0 25px rgba(0, 234, 255, 0.3), inset 0 0 15px rgba(0, 234, 255, 0.1)',
+        'display:flex', 'flex-direction:column', 'align-items:center', 'gap:24px'
+    ].join(';');
+
+    var titulo = document.createElement('div');
+    titulo.className = 'stats-titulo';
+    titulo.style.cssText = 'font-size:28px; font-weight:900; letter-spacing:4px; text-shadow:0 0 12px #00eaff; text-align:center; color:#00eaff;';
+    titulo.textContent = 'ESTATÍSTICAS DA PARTIDA';
+
+    var sub = document.createElement('div');
+    sub.className = 'stats-sub';
+    sub.style.cssText = 'font-size:16px; font-weight:700; letter-spacing:2px; text-shadow:0 0 8px #ffffff; text-align:center; margin-bottom:4px;';
+
+    var table = document.createElement('div');
+    table.className = 'stats-table';
+    table.style.cssText = 'width:100%; display:flex; flex-direction:column; gap:10px; font-family:"Share Tech Mono", monospace; font-size:14px;';
+
+    var btnContainer = document.createElement('div');
+    btnContainer.style.cssText = 'display:flex; gap:20px; width:100%; justify-content:center; margin-top:10px;';
+
+    var btnReplay = document.createElement('button');
+    btnReplay.className = 'stats-btn stats-btn-replay';
+    btnReplay.textContent = 'JOGAR NOVAMENTE';
+    btnReplay.style.cssText = [
+        'background:transparent', 'border:2px solid #00eaff', 'color:#00eaff',
+        'padding:12px 24px', 'font-family:Orbitron, monospace', 'font-size:12px',
+        'font-weight:700', 'letter-spacing:2px', 'cursor:pointer', 'border-radius:6px',
+        'transition:all 0.3s ease', 'box-shadow:0 0 8px rgba(0,234,255,0.2)',
+        'pointer-events:auto'
+    ].join(';');
+
+    var btnMenu = document.createElement('button');
+    btnMenu.className = 'stats-btn stats-btn-menu';
+    btnMenu.textContent = 'VOLTAR AO MENU';
+    btnMenu.style.cssText = [
+        'background:transparent', 'border:2px solid #ff2bd6', 'color:#ff2bd6',
+        'padding:12px 24px', 'font-family:Orbitron, monospace', 'font-size:12px',
+        'font-weight:700', 'letter-spacing:2px', 'cursor:pointer', 'border-radius:6px',
+        'transition:all 0.3s ease', 'box-shadow:0 0 8px rgba(255,43,214,0.2)',
+        'pointer-events:auto'
+    ].join(';');
+
+    btnReplay.onmouseenter = function() {
+        btnReplay.style.background = '#00eaff';
+        btnReplay.style.color = '#000000';
+        btnReplay.style.boxShadow = '0 0 18px #00eaff';
+    };
+    btnReplay.onmouseleave = function() {
+        btnReplay.style.background = 'transparent';
+        btnReplay.style.color = '#00eaff';
+        btnReplay.style.boxShadow = '0 0 8px rgba(0,234,255,0.2)';
+    };
+
+    btnMenu.onmouseenter = function() {
+        btnMenu.style.background = '#ff2bd6';
+        btnMenu.style.color = '#000000';
+        btnMenu.style.boxShadow = '0 0 18px #ff2bd6';
+    };
+    btnMenu.onmouseleave = function() {
+        btnMenu.style.background = 'transparent';
+        btnMenu.style.color = '#ff2bd6';
+        btnMenu.style.boxShadow = '0 0 8px rgba(255,43,214,0.2)';
+    };
+
+    panel.appendChild(titulo);
+    panel.appendChild(sub);
+    panel.appendChild(table);
+    panel.appendChild(btnContainer);
+    btnContainer.appendChild(btnReplay);
+    btnContainer.appendChild(btnMenu);
+    div.appendChild(panel);
+
+    document.body.appendChild(div);
+    estado.overlayEstatistias = div;
+    
+    btnReplay.onclick = function() {
+        if (estado.onRestart) {
+            estado.onRestart();
+        }
+    };
+    
+    btnMenu.onclick = function() {
+        var cb = estado.onMatchEnd;
+        limparGameLogic();
+        if (cb) cb();
+    };
+
+    return div;
+}
+
+function mostrarEstatistias() {
+    esconderResultado();
+    esconderHUD();
+    var ov = obterOverlayEstatistias();
+    
+    var sub = ov.querySelector('.stats-sub');
+    var table = ov.querySelector('.stats-table');
+    
+    var vencId = estado.vencedorPartida;
+    var corVenc = corHexJogador(vencId);
+    var nomeVenc = nomeJogador(vencId);
+    
+    sub.textContent = 'VENCEDOR DA PARTIDA: ' + nomeVenc;
+    sub.style.color = corVenc;
+    sub.style.textShadow = '0 0 8px ' + corVenc;
+    
+    var labelP1 = (estado.gameMode === 'local1v1' || estado.gameMode === 'split1v1') ? 'P1' : 'YOU';
+    var labelP2 = (estado.gameMode === 'local1v1' || estado.gameMode === 'split1v1') ? 'P2' : 'AI';
+    var corP1 = corHexJogador(1);
+    var corP2 = corHexJogador(2);
+    
+    var html = '';
+    
+    // Header
+    html += '<div style="display:flex; justify-content:space-between; border-bottom:1px solid rgba(255,255,255,0.2); padding-bottom:6px; margin-bottom:4px; font-weight:bold; letter-spacing:1px; font-family:Orbitron, monospace; font-size:11px;">'
+         +  '<span style="flex:2; text-align:left;">CATEGORIA</span>'
+         +  '<span style="flex:1; text-align:center; color:' + corP1 + '; text-shadow:0 0 5px ' + corP1 + '">' + labelP1 + '</span>'
+         +  '<span style="flex:1; text-align:center; color:' + corP2 + '; text-shadow:0 0 5px ' + corP2 + '">' + labelP2 + '</span>'
+         +  '</div>';
+         
+    function addRow(label, v1, v2) {
+        return '<div style="display:flex; justify-content:space-between; padding:5px 0; border-bottom:1px solid rgba(255,255,255,0.05);">'
+             + '<span style="flex:2; opacity:0.85; text-align:left;">' + label + '</span>'
+             + '<span style="flex:1; text-align:center; font-weight:bold; color:' + corP1 + '">' + v1 + '</span>'
+             + '<span style="flex:1; text-align:center; font-weight:bold; color:' + corP2 + '">' + v2 + '</span>'
+             + '</div>';
+    }
+    
+    html += addRow('Rondas Ganhas', estado.estatisticas.rondasGanhas[1] || 0, estado.estatisticas.rondasGanhas[2] || 0);
+    html += addRow('Tempo de Nitro Utilizado', (estado.estatisticas.boostUso[1] || 0).toFixed(1) + 's', (estado.estatisticas.boostUso[2] || 0).toFixed(1) + 's');
+    html += addRow('Saltos Realizados', estado.estatisticas.saltos[1] || 0, estado.estatisticas.saltos[2] || 0);
+    html += addRow('Colisões com Rasto (Trail)', estado.estatisticas.colisoesTrail[1] || 0, estado.estatisticas.colisoesTrail[2] || 0);
+    html += addRow('Colisões com Parede/Obstáculo', estado.estatisticas.colisoesParede[1] || 0, estado.estatisticas.colisoesParede[2] || 0);
+    
+    if (estado.estatisticas.colisoesLaser[1] > 0 || estado.estatisticas.colisoesLaser[2] > 0) {
+        html += addRow('Colisões com Laser (Drone)', estado.estatisticas.colisoesLaser[1] || 0, estado.estatisticas.colisoesLaser[2] || 0);
+    }
+    
+    html += '<div style="display:flex; justify-content:center; padding:12px 0 0 0; font-weight:bold; font-size:13px; opacity:0.9; letter-spacing:1px; font-family:Orbitron, monospace;">'
+         +  'TEMPO TOTAL DE JOGO: ' + estado.estatisticas.tempoTotal.toFixed(1) + 's'
+         +  '</div>';
+         
+    table.innerHTML = html;
+    
+    var panel = ov.firstChild;
+    panel.style.borderColor = corVenc;
+    panel.style.boxShadow = '0 0 25px ' + corVenc + '40, inset 0 0 15px ' + corVenc + '15';
+    
+    var title = ov.querySelector('.stats-titulo');
+    title.style.color = corVenc;
+    title.style.textShadow = '0 0 12px ' + corVenc;
+    
+    ov.style.display = 'flex';
+}
+
+function esconderTelaEstatistias() {
+    if (estado.overlayEstatistias) estado.overlayEstatistias.style.display = 'none';
+}
+
 // ---------------------------------------------------------------
 // Limpeza (chamado ao voltar para o menu)
 // ---------------------------------------------------------------
@@ -967,6 +1220,7 @@ export function limparGameLogic() {
     esconderResultado();
     esconderContagem();
     esconderHUD();
+    esconderTelaEstatistias();
     for (var i = 0; i < estado.explosoes.length; i++) destruirExplosao(estado.explosoes[i]);
     estado.explosoes.length = 0;
     if (estado.trailMota)  resetarTrail(estado.trailMota);
@@ -1057,38 +1311,83 @@ function obterHUDVidas() {
     var div = document.createElement('div');
     div.id = 'hud-vidas';
     div.style.cssText = [
-        'position:fixed', 'top:0', 'left:0', 'width:100%',
-        'display:none', 'justify-content:space-between', 'align-items:center',
-        'padding:10px 24px', 'box-sizing:border-box',
+        'position:fixed', 'top:0', 'left:0', 'width:100%', 'height:100%',
+        'display:none', 'pointer-events:none', 'z-index:1400'
+    ].join(';');
+
+    // Stack 1 (Left Screen / Single Player)
+    var stack1 = document.createElement('div');
+    stack1.className = 'hud-stack-p1';
+    stack1.style.cssText = [
+        'position:absolute', 'top:18px', 'left:24px',
+        'display:flex', 'flex-direction:column', 'gap:6px',
         'font-family:Orbitron, "Courier New", monospace',
-        'font-size:13px', 'letter-spacing:2px',
-        'pointer-events:none', 'z-index:1400'
+        'font-size:13px', 'letter-spacing:2px', 'font-weight:700'
     ].join(';');
 
-    var p1 = document.createElement('div');
-    p1.className = 'hud-p1';
-    p1.style.cssText = 'display:flex;align-items:center;gap:8px;font-weight:700';
-    var p2 = document.createElement('div');
-    p2.className = 'hud-p2';
-    p2.style.cssText = 'display:flex;align-items:center;gap:8px;font-weight:700';
-    var meio = document.createElement('div');
-    meio.className = 'hud-meio';
-    meio.style.cssText = [
+    // Stack 2 (Right Screen - Split screen only)
+    var stack2 = document.createElement('div');
+    stack2.className = 'hud-stack-p2';
+    stack2.style.cssText = [
+        'position:absolute', 'top:18px', 'left:calc(50% + 24px)',
+        'display:flex', 'flex-direction:column', 'gap:6px',
+        'font-family:Orbitron, "Courier New", monospace',
+        'font-size:13px', 'letter-spacing:2px', 'font-weight:700'
+    ].join(';');
+
+    var meio1 = document.createElement('div');
+    meio1.className = 'hud-meio-p1';
+    meio1.style.cssText = [
+        'position:absolute', 'top:18px', 'left:50%', 'transform:translateX(-50%)',
         'color:#ffffff', 'font-size:11px', 'letter-spacing:6px',
-        'font-weight:900', 'text-shadow:0 0 6px #ffffff'
+        'font-weight:900', 'text-shadow:0 0 6px #ffffff',
+        'font-family:Orbitron, "Courier New", monospace'
     ].join(';');
 
-    div.appendChild(p1);
-    div.appendChild(meio);
-    div.appendChild(p2);
+    var meio2 = document.createElement('div');
+    meio2.className = 'hud-meio-p2';
+    meio2.style.cssText = [
+        'position:absolute', 'top:18px', 'left:75%', 'transform:translateX(-50%)',
+        'color:#ffffff', 'font-size:11px', 'letter-spacing:6px',
+        'font-weight:900', 'text-shadow:0 0 6px #ffffff',
+        'font-family:Orbitron, "Courier New", monospace',
+        'display:none'
+    ].join(';');
+
+    div.appendChild(stack1);
+    div.appendChild(stack2);
+    div.appendChild(meio1);
+    div.appendChild(meio2);
     document.body.appendChild(div);
     estado.hudVidas = div;
     return div;
 }
 
+function preencherStackVidas(stack, idxBreakP1, idxBreakP2) {
+    stack.innerHTML = '';
+    
+    var nomeP1 = (estado.gameMode === 'local1v1' || estado.gameMode === 'split1v1') ? 'P1' : 'YOU';
+    var nomeP2 = (estado.gameMode === 'local1v1' || estado.gameMode === 'split1v1') ? 'P2' : 'AI';
+    var corP1 = corHexJogador(1);
+    var corP2 = corHexJogador(2);
+
+    var r1 = document.createElement('div');
+    r1.style.cssText = 'display:flex; align-items:center; gap:8px;';
+    r1.innerHTML = '<span style="color:' + corP1 + '; display:inline-block; width:45px; text-shadow:0 0 6px ' + corP1 + '">' + nomeP1 + '</span>'
+        + construirCoracoesHTML(1, idxBreakP1);
+
+    var r2 = document.createElement('div');
+    r2.style.cssText = 'display:flex; align-items:center; gap:8px;';
+    r2.innerHTML = '<span style="color:' + corP2 + '; display:inline-block; width:45px; text-shadow:0 0 6px ' + corP2 + '">' + nomeP2 + '</span>'
+        + construirCoracoesHTML(2, idxBreakP2);
+
+    stack.appendChild(r1);
+    stack.appendChild(r2);
+}
+
 function mostrarHUD() {
     var hud = obterHUDVidas();
-    hud.style.display = 'flex';
+    hud.style.display = 'block';
 }
 
 function esconderHUD() {
@@ -1119,23 +1418,34 @@ function construirCoracoesHTML(jogadorId, indiceBreaking) {
 // passar definitivamente a ♡ no segundo render.
 function atualizarHUD(jogadorPerdeuVida) {
     var hud = obterHUDVidas();
-    var p1 = hud.querySelector('.hud-p1');
-    var p2 = hud.querySelector('.hud-p2');
-    var meio = hud.querySelector('.hud-meio');
-
-    var nomeP1 = (estado.gameMode === 'local1v1' || estado.gameMode === 'split1v1') ? 'P1' : 'YOU';
-    var nomeP2 = (estado.gameMode === 'local1v1' || estado.gameMode === 'split1v1') ? 'P2' : 'AI';
-    var corP1 = corHexJogador(1);
-    var corP2 = corHexJogador(2);
+    var stack1 = hud.querySelector('.hud-stack-p1');
+    var stack2 = hud.querySelector('.hud-stack-p2');
+    var meio1 = hud.querySelector('.hud-meio-p1');
+    var meio2 = hud.querySelector('.hud-meio-p2');
 
     var idxBreakP1 = (jogadorPerdeuVida === 1) ? estado.vidas[1] : -1;
     var idxBreakP2 = (jogadorPerdeuVida === 2) ? estado.vidas[2] : -1;
 
-    p1.innerHTML = construirCoracoesHTML(1, idxBreakP1)
-        + '<span style="color:' + corP1 + ';margin-left:10px;text-shadow:0 0 6px ' + corP1 + '">' + nomeP1 + '</span>';
-    p2.innerHTML = '<span style="color:' + corP2 + ';margin-right:10px;text-shadow:0 0 6px ' + corP2 + '">' + nomeP2 + '</span>'
-        + construirCoracoesHTML(2, idxBreakP2);
-    meio.textContent = 'ROUND ' + estado.numRonda;
+    preencherStackVidas(stack1, idxBreakP1, idxBreakP2);
+
+    if (estado.gameMode === 'split1v1') {
+        stack2.style.display = 'flex';
+        preencherStackVidas(stack2, idxBreakP1, idxBreakP2);
+        
+        // Centra o round nos ecrãs de forma dividida (25% e 75%)
+        meio1.style.left = '25%';
+        meio2.style.left = '75%';
+        meio2.style.display = 'block';
+    } else {
+        stack2.style.display = 'none';
+        
+        // Centra a 50%
+        meio1.style.left = '50%';
+        meio2.style.display = 'none';
+    }
+
+    meio1.textContent = 'ROUND ' + estado.numRonda;
+    meio2.textContent = 'ROUND ' + estado.numRonda;
 
     // Após a animação, re-renderiza sem o "breaking" para o coração ficar ♡
     if (jogadorPerdeuVida) {

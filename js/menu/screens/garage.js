@@ -84,10 +84,11 @@ function makeStatBar(label, x, y) {
 }
 
 function setVehicleStats(vehicle) {
-    var keys = ['speed', 'acceleration', 'handling'];
+    var keys = ['velocidade', 'trail', 'nitro'];
     keys.forEach(function (k, i) {
         var bar = statBars[i];
-        if (bar) tween(bar.fill.scale, { x: vehicle.stats[k] }, { duration: 0.5, easing: Easing.easeOut });
+        // Stats são níveis 1-3; a barra preenche-se entre ~0.33 e 1.0.
+        if (bar) tween(bar.fill.scale, { x: vehicle.stats[k] / 3 }, { duration: 0.5, easing: Easing.easeOut });
     });
 }
 
@@ -156,8 +157,8 @@ export function buildGarage(scene) {
     var statsPanel = new THREE.Group();
     statsPanel.position.set(4.6, 1.6, 0);
     var bs = makeStatBar('SPEED', 0, 0.4);
-    var ba = makeStatBar('ACCEL', 0, 0.0);
-    var bh = makeStatBar('HANDLE', 0, -0.4);
+    var ba = makeStatBar('TRAIL', 0, 0.0);
+    var bh = makeStatBar('NITRO', 0, -0.4);
     statBars = [bs, ba, bh];
     [bs, ba, bh].forEach(b => statsPanel.add(b.group));
     group.add(statsPanel);

@@ -95,27 +95,34 @@ function aoLargar(e) {
     teclas[e.code] = false;
 }
 
-function criarEstado(veiculo) {
+function criarEstado(veiculo, tuning) {
+    // Velocidade e capacidade de nitro vêm do tuning do veículo escolhido;
+    // sem tuning (fallback) usam-se os valores base globais.
+    var velocidade = (tuning && tuning.velocidade) || VELOCIDADE_BASE;
+    var boostMax = (tuning && tuning.nitroMax) || BOOST_TEMPO_MAX;
+    // A IA lê a velocidade real do seu veículo via userData para afinar a previsão.
+    veiculo.userData.velocidade = velocidade;
     // A frente visual aponta para -Z, pelo que a direção usa sinal negativo
     return {
-        velocidade: VELOCIDADE_BASE,
+        velocidade: velocidade,
+        boostMax: boostMax,
         direcao: new THREE.Vector3(-Math.sin(veiculo.rotation.y), 0, -Math.cos(veiculo.rotation.y)),
         saltando: false,
         tSalto: 0,
         alturaBase: veiculo.position.y,
         alturaMaxSalto: ALTURA_MAX_SALTO,
         duracaoSalto: DURACAO_SALTO,
-        boostCarga: BOOST_TEMPO_MAX,
+        boostCarga: boostMax,
         boostAtivo: false
     };
 }
 
-export function inicializarInput(mota, skate, arena) {
+export function inicializarInput(mota, skate, arena, tuningJ1, tuningJ2) {
     motaJ1 = mota;
     skateJ2 = skate;
     if (arena !== undefined) LIMITE_ARENA = arena / 2;
-    estadoJ1 = criarEstado(mota);
-    estadoJ2 = criarEstado(skate);
+    estadoJ1 = criarEstado(mota, tuningJ1);
+    estadoJ2 = criarEstado(skate, tuningJ2);
 
     var dim1 = calcularDimensoes(mota);
     estadoJ1.hw = dim1.hw;
@@ -267,9 +274,9 @@ function atualizarJogador(veiculo, estado, fonteTeclas, teclaEsq, teclaDir, tecl
         if (estado.boostCarga < 0) estado.boostCarga = 0;
     } else {
         estado.boostAtivo = false;
-        if (estado.boostCarga < BOOST_TEMPO_MAX) {
-            estado.boostCarga += delta * (BOOST_TEMPO_MAX / BOOST_TEMPO_RECARGA);
-            if (estado.boostCarga > BOOST_TEMPO_MAX) estado.boostCarga = BOOST_TEMPO_MAX;
+        if (estado.boostCarga < estado.boostMax) {
+            estado.boostCarga += delta * (estado.boostMax / BOOST_TEMPO_RECARGA);
+            if (estado.boostCarga > estado.boostMax) estado.boostCarga = estado.boostMax;
         }
     }
     var velocidadeAtual = estado.velocidade * (estado.boostAtivo ? BOOST_MULTIPLICADOR : 1);
@@ -434,7 +441,7 @@ export function reposicionarJogador(idx, x, z, rotY) {
     st.direcao.set(-Math.sin(rotY), 0, -Math.cos(rotY));
     st.saltando = false;
     st.tSalto = 0;
-    st.boostCarga = BOOST_TEMPO_MAX;
+    st.boostCarga = st.boostMax;
     st.boostAtivo = false;
 }
 
@@ -444,11 +451,14 @@ export function obterSkateJ2() { return skateJ2; }
 export function obterRotacaoJ1() { return motaJ1 ? motaJ1.rotation.y : 0; }
 
 // --- Boost / Nitro: leituras para HUD ---
-export function obterBoostMax() { return BOOST_TEMPO_MAX; }
+export function obterBoostMax(idx) {
+    var st = (idx === 1) ? estadoJ1 : (idx === 2 ? estadoJ2 : null);
+    return st ? st.boostMax : BOOST_TEMPO_MAX;
+}
 export function obterBoost(idx) {
     var st = (idx === 1) ? estadoJ1 : (idx === 2 ? estadoJ2 : null);
     if (!st) return { carga: 0, max: BOOST_TEMPO_MAX, ativo: false };
-    return { carga: st.boostCarga, max: BOOST_TEMPO_MAX, ativo: st.boostAtivo };
+    return { carga: st.boostCarga, max: st.boostMax, ativo: st.boostAtivo };
 }
 export function obterEstadoPulo(idx) {
     var st = (idx === 1) ? estadoJ1 : (idx === 2 ? estadoJ2 : null);

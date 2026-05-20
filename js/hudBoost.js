@@ -2,7 +2,7 @@
 // Em single-player mostra apenas o jogador humano (J1).
 // No modo local1v1 mostra ambos os jogadores, empilhados.
 
-import { obterBoost, obterBoostMax } from './input.js';
+import { obterBoost } from './input.js';
 
 var container = null;
 var barras = []; // { idx, fill, label, cor }
@@ -116,11 +116,10 @@ export function criarHudBoost(opts) {
 
 export function atualizarHudBoost() {
     if (!container) return;
-    var max = obterBoostMax();
     for (var i = 0; i < barras.length; i++) {
         var b = barras[i];
         var info = obterBoost(b.idx);
-        var pct = Math.max(0, Math.min(1, info.carga / max));
+        var pct = Math.max(0, Math.min(1, info.carga / info.max));
         // Quantiza a 0.5% — evita layout/paint a cada frame por mudanças sub-pixel.
         var pctQ = Math.round(pct * 200);
         if (b._lastPctQ !== pctQ) {

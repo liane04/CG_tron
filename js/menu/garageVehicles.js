@@ -24,7 +24,7 @@ export var VEHICLES = [
     {
         id: 'mota',
         name: 'LIGHT CYCLE',
-        stats: { speed: 0.85, acceleration: 0.75, handling: 0.7 },
+        stats: { velocidade: 2, trail: 3, nitro: 1 },
         build: function (color) {
             // The mota is built fairly large with its own internal scale; shrink
             // it slightly so it sits comfortably on the garage podium.
@@ -37,7 +37,7 @@ export var VEHICLES = [
     {
         id: 'skate',
         name: 'HOVER SKATE',
-        stats: { speed: 0.7, acceleration: 0.9, handling: 0.85 },
+        stats: { velocidade: 3, trail: 1, nitro: 2 },
         build: function (color) {
             var v = criarSkate(color.hex);
             v.scale.multiplyScalar(2.2);
@@ -48,7 +48,7 @@ export var VEHICLES = [
     {
         id: 'speeder',
         name: 'SPEEDER X1',
-        stats: { speed: 0.95, acceleration: 0.7, handling: 0.6 },
+        stats: { velocidade: 1, trail: 2, nitro: 3 },
         build: function (color) {
             var v = criarSpeeder(color.hex);
             v.scale.multiplyScalar(1.6);
@@ -57,6 +57,24 @@ export var VEHICLES = [
         podiumOffsetY: 0
     }
 ];
+
+// --- Tuning de jogo por veículo --------------------------------------------
+// Cada veículo tem 3 stats em níveis 1-3 que somam sempre 6 → roster
+// equilibrado (cada coluna tem um 1, um 2 e um 3). Estas tabelas convertem o
+// nível no valor concreto usado pelo motor de jogo.
+var NIVEL_VELOCIDADE = { 1: 9, 2: 10, 3: 11.5 };   // unidades/s
+var NIVEL_TRAIL      = { 1: 200, 2: 300, 3: 420 }; // nº máximo de segmentos
+var NIVEL_NITRO      = { 1: 2.0, 2: 3.0, 3: 4.5 }; // segundos de boost
+
+// Devolve os valores de jogo (velocidade, trailMax, nitroMax) de um veículo.
+export function obterTuning(vehicleId) {
+    var s = findVehicle(vehicleId).stats;
+    return {
+        velocidade: NIVEL_VELOCIDADE[s.velocidade],
+        trailMax: NIVEL_TRAIL[s.trail],
+        nitroMax: NIVEL_NITRO[s.nitro]
+    };
+}
 
 export var TRAILS = [
     { id: 'wireframe', name: 'NEON GRID',  description: 'Muro 3D Wireframe' },

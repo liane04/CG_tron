@@ -14,6 +14,7 @@ import { criarSpeeder, atualizarSpeeder } from './speeder.js';
 import { inicializarInput, atualizarMotas, definirObstaculos, definirIAJ1Ativa, definirIAJ2Ativa, definirLayoutControlos } from './input.js';
 import { criarLuzes } from './luzes.js';
 import { mapas } from './mapas.js';
+import { obterTuning } from './menu/garageVehicles.js';
 import { criarTrail, destruirTrail, atualizarTrail } from './trail.js';
 import { configurarGameLogic, iniciarRonda, atualizarGameLogic, limparGameLogic, preCompilarExplosoes } from './gameLogic.js';
 import { inicializarIA, atualizarIA } from './ai.js';
@@ -360,6 +361,13 @@ function buildGame() {
         var ehDuelo = (modoJogoAtual === 'local1v1' || modoJogoAtual === 'split1v1');
         var corP2 = ehDuelo ? resolverCor(garage2, COR_SKATE_J2) : COR_SKATE_J2;
 
+        // Tuning (velocidade / trail / nitro) por veículo escolhido. Em
+        // single-player o P2 é sempre o skate por defeito.
+        var vehicleIdP1 = (garage && garage.vehicleId) || 'mota';
+        var vehicleIdP2 = ehDuelo ? ((garage2 && garage2.vehicleId) || 'mota') : 'skate';
+        var tuningP1 = obterTuning(vehicleIdP1);
+        var tuningP2 = obterTuning(vehicleIdP2);
+
         motaJogador1 = buildVehicle(garage, 0x00ffff);
         motaJogador1.position.set(-5, 0, 0);
         motaJogador1.rotation.y = 0;
@@ -372,15 +380,15 @@ function buildGame() {
         cena.add(skateJogador2);
         if (luzes.pontoMota2) luzes.pontoMota2.color.set(corP2);
 
-        inicializarInput(motaJogador1, skateJogador2, ARENA);
+        inicializarInput(motaJogador1, skateJogador2, ARENA, tuningP1, tuningP2);
         definirObstaculos(grupoArena);
 
         // Trails — cor sincronizada com a do veículo correspondente. No 1v1
         // o P2 usa o rasto escolhido em garage2; no AI usa o mesmo do P1.
         var trailIdP1 = garage && garage.trailId;
         var trailIdP2 = (ehDuelo && garage2 && garage2.trailId) ? garage2.trailId : trailIdP1;
-        trailMota = criarTrail(corP1, 300, trailIdP1);
-        trailSkate = criarTrail(corP2, 300, trailIdP2);
+        trailMota = criarTrail(corP1, tuningP1.trailMax, trailIdP1);
+        trailSkate = criarTrail(corP2, tuningP2.trailMax, trailIdP2);
         cena.add(trailMota.mesh);
         cena.add(trailSkate.mesh);
 
